@@ -1,0 +1,155 @@
+.dashboard {}
+
+.card__title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: var(--color-text);
+}
+
+/* ── Welcome Banner ── */
+.welcome-banner {
+    background: linear-gradient(135deg, #1a3a5c 0%, #2b9e9e 100%);
+    border-radius: var(--radius-lg);
+    padding: 28px 32px;
+    color: white;
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 24px;
+    box-shadow: 0 8px 32px rgba(26, 58, 92, 0.18);
+}
+
+/* Subtle animated shimmer */
+.welcome-banner::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle at 30% 40%, rgba(255, 255, 255, 0.06) 0%, transparent 60%),
+        radial-gradient(circle at 70% 80%, rgba(255, 255, 255, 0.04) 0%, transparent 50%);
+    animation: bannerShimmer 8s ease-in-out infinite alternate;
+}
+
+@keyframes bannerShimmer {
+    0% {
+        transform: translate(0, 0);
+    }
+
+    100% {
+        transform: translate(-5%, 3%);
+    }
+}
+
+.welcome-banner__content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+    z-index: 1;
+}
+
+.welcome-banner__text {
+    flex: 1;
+}
+
+.welcome-banner__greeting {
+    font-size: 13px;
+    opacity: 0.7;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+}
+
+.welcome-banner__name {
+    font-size: 26px;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.welcome-banner__sub {
+    font-size: 14px;
+    opacity: 0.8;
+}
+
+.welcome-banner__cta {
+    background: rgba(255, 255, 255, 0.2) !important;
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.3) !important;
+    box-shadow: none !important;
+    color: white !important;
+    white-space: nowrap;
+}
+
+.welcome-banner__cta:hover {
+    background: rgba(255, 255, 255, 0.3) !important;
+    transform: translateY(-1px);
+}
+
+/* Pipeline steps */
+.welcome-banner__pipeline {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-top: 20px;
+    padding-top: 18px;
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+    position: relative;
+    z-index: 1;
+}
+
+.pipeline-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    position: relative;
+}
+
+.pipeline-step__value {
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 4px;
+}
+
+.pipeline-step__label {
+    font-size: 11px;
+    opacity: 0.7;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.pipeline-step__arrow {
+    position: absolute;
+    right: -4px;
+    top: 6px;
+    font-size: 16px;
+    opacity: 0.4;
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+    .welcome-banner {
+        padding: 20px;
+    }
+
+    .welcome-banner__content {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+    }
+
+    .welcome-banner__name {
+        font-size: 22px;
+    }
+
+    .welcome-banner__pipeline {
+        gap: 4px;
+    }
+
+    .pipeline-step__value {
+        font-size: 18px;
+    }
+}

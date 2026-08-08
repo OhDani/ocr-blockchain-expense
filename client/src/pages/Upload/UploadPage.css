@@ -1,0 +1,364 @@
+/* ── Upload Page — Glassmorphism ── */
+
+.upload-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    align-items: start;
+}
+
+/* Drop zone */
+.upload-zone {
+    border: 2px dashed var(--color-border);
+    border-radius: var(--radius);
+    padding: 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: all var(--transition);
+    background: var(--color-bg-card);
+    backdrop-filter: var(--glass-blur);
+    min-height: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.upload-zone:hover,
+.upload-zone--active {
+    border-color: var(--color-lavender);
+    background: rgba(124, 108, 240, 0.04);
+    box-shadow: 0 0 0 4px rgba(124, 108, 240, 0.06);
+}
+
+.upload-zone--has-file {
+    cursor: default;
+    padding: 16px;
+}
+
+.upload-placeholder__icon {
+    color: var(--color-text-muted);
+    display: block;
+    margin-bottom: 12px;
+    opacity: 0.6;
+}
+
+.upload-placeholder__text {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--color-text);
+    margin-bottom: 4px;
+}
+
+.upload-placeholder__sub {
+    font-size: 13px;
+    color: var(--color-text-muted);
+}
+
+/* Preview */
+.upload-preview {
+    width: 100%;
+    position: relative;
+    animation: fadeIn 0.3s ease;
+}
+
+.upload-preview img {
+    max-width: 100%;
+    max-height: 400px;
+    border-radius: var(--radius-sm);
+    object-fit: contain;
+}
+
+.upload-change {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+}
+
+/* Error */
+.upload-error {
+    margin-top: 12px;
+    padding: 10px 14px;
+    background: var(--color-danger-bg);
+    color: #991b1b;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    border-left: 3px solid var(--color-danger);
+    animation: fadeIn 0.3s ease;
+}
+
+/* Success */
+.upload-success {
+    text-align: center;
+    padding: 48px 24px;
+    background: var(--color-bg-card);
+    backdrop-filter: var(--glass-blur);
+    border-radius: var(--radius);
+    border: var(--glass-border);
+    animation: fadeInUp 0.4s ease both;
+}
+
+.upload-success__icon {
+    color: var(--color-success);
+    margin-bottom: 12px;
+}
+
+.upload-success h3 {
+    font-size: 18px;
+    margin-bottom: 8px;
+}
+
+.upload-success p {
+    color: var(--color-text-muted);
+}
+
+/* Warnings */
+.upload-warnings {
+    margin-bottom: 12px;
+}
+
+.upload-warning {
+    padding: 6px 10px;
+    background: var(--color-warning-bg);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    color: #92400e;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* ── Result Cards ── */
+.result-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* Policy card */
+.result-policy {
+    animation: fadeInUp 0.4s ease both;
+}
+
+.result-policy--valid {
+    border-left: 4px solid var(--color-success);
+}
+
+.result-policy--over_budget {
+    border-left: 4px solid var(--color-warning);
+}
+
+.result-policy--invalid_tax_id,
+.result-policy--invalid_data {
+    border-left: 4px solid var(--color-danger);
+}
+
+.result-policy__header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.result-policy__icon {
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.result-policy__icon--valid {
+    color: var(--color-success);
+}
+
+.result-policy__icon--invalid {
+    color: var(--color-danger);
+}
+
+.result-policy__title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text);
+    margin-bottom: 2px;
+}
+
+.result-policy__message {
+    font-size: 13px;
+    color: var(--color-text-secondary);
+}
+
+.result-policy__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.result-policy__item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.result-policy__label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.result-policy__value {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-text);
+}
+
+/* Invoice card */
+.result-invoice {
+    animation: fadeInUp 0.45s ease both;
+    animation-delay: 0.05s;
+}
+
+.result-invoice__title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-text);
+    margin-bottom: 16px;
+}
+
+.result-invoice__grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.result-invoice__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.3);
+}
+
+.result-invoice__row:last-child {
+    border-bottom: none;
+}
+
+.result-invoice__field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.result-invoice__field-icon {
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+}
+
+.result-invoice__field-label {
+    font-size: 13px;
+    color: var(--color-text-secondary);
+}
+
+.result-invoice__field-value {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-text);
+    text-align: right;
+}
+
+.result-invoice__field-value--highlight {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--color-primary);
+}
+
+/* Items detail */
+.result-invoice__items {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(226, 232, 240, 0.3);
+}
+
+.result-invoice__items-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 8px;
+}
+
+.result-invoice__item-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    font-size: 13px;
+}
+
+.result-invoice__item-name {
+    color: var(--color-text-secondary);
+}
+
+.result-invoice__item-amount {
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+/* Blockchain card */
+.result-blockchain {
+    animation: fadeInUp 0.5s ease both;
+    animation-delay: 0.1s;
+}
+
+.result-blockchain__status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--color-success-bg);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 500;
+    color: #065f46;
+    margin-bottom: 14px;
+}
+
+.result-blockchain__check {
+    color: var(--color-success);
+    flex-shrink: 0;
+}
+
+.result-blockchain__details {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.result-blockchain__row {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.result-blockchain__label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.result-blockchain__hash {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    word-break: break-all;
+    font-family: 'Courier New', monospace;
+}
+
+.result-blockchain__value {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text);
+}

@@ -1,0 +1,136 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL") // Cần cho Supabase (PgBouncer mode)
+}
+
+// ──────────────────── User ────────────────────
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  password      String    // bcrypt hash
+  name          String
+  role          Role      @default(EMPLOYEE)
+  department    String?
+  walletAddress String?   // Ethereum wallet cho hoàn ứng
+  avatarUrl     String?   // Đường dẫn avatar
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  trips         Trip[]
+  expenses      Expense[]
+  notifications Notification[]
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  EMPLOYEE
+}
+
+// ──────────────────── Trip ────────────────────
+
+model Trip {
+  id           String     @id @default(uuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id])
+  destination  String     // "Đà Nẵng"
+  workLocation String?    // "Công ty ABC, 123 Nguyễn Văn Linh"
+  purpose      String?    // "Họp đối tác + khảo sát"
+  startDate    DateTime
+  endDate      DateTime
+  budget       Float      // Ngân sách được duyệt trước
+  status       TripStatus @default(PLANNED)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  expenses   Expense[]
+  activities TripActivity[]
+}
+
+enum TripStatus {
+  PLANNED
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+// ──────────────────── Trip Activity (Kế hoạch) ────────────────────
+
+model TripActivity {
+  id            String   @id @default(uuid())
+  tripId        String
+  trip          Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  date          DateTime // Ngày thực hiện
+  time          String?  // Giờ, VD: "09:00"
+  title         String   // "Họp đối tác tại VP ABC"
+  description   String?  // Chi tiết hoạt động
+  location      String?  // Địa điểm cụ thể
+  type          String   @default("other") // meeting, transport, accommodation, meal, sightseeing, other
+  completed     Boolean  @default(false) // Đã hoàn thành chưa
+  estimatedCost Float?   // Dự trù chi phí (VNĐ)
+  createdAt     DateTime @default(now())
+}
+
+// ──────────────────── Expense ────────────────────
+
+model Expense {
+  id           String        @id @default(uuid())
+  userId       String
+  user         User          @relation(fields: [userId], references: [id])
+  tripId       String?
+  trip         Trip?         @relation(fields: [tripId], references: [id])
+
+  // Thông tin hóa đơn
+  amount       Float         // Tổng tiền (grand_total từ OCR)
+  invoiceType  String?       // "restaurant", "hotel", "taxi"...
+  imageUrl     String?       // Đường dẫn ảnh upload
+  invoiceHash  String?       // SHA-256 hash của ảnh (ghi blockchain)
+
+  // Kết quả AI OCR
+  ocrData      Json?         // Full JSON từ Gemini Vision
+  ocrRawText   String?       // Raw text response
+
+  // Kết quả Policy Engine 
+  policyResult Json?         // { status, checks, details, message }
+  policyStatus String?       // "VALID", "OVER_BUDGET", "INVALID_TAX_ID"
+
+  // Trạng thái phê duyệt
+  status       ExpenseStatus @default(PENDING)
+  rejectReason String?       // Lý do từ chối (admin nhập khi reject)
+  userNote     String?       // Ghi chú của nhân viên khi upload
+  appealNote   String?       // Khiếu nại của nhân viên khi bị từ chối
+
+  // Blockchain transaction
+  txHash       String?       // TX hash sau khi ghi blockchain
+  blockchainId Int?          // Expense ID trên smart contract
+
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+enum ExpenseStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REIMBURSED
+}
+
+// ──────────────────── Notification ────────────────────
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  type      String   // "expense_approved", "expense_rejected", "expense_reimbursed", "appeal_received"
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  expenseId String?  // Liên kết đến expense nếu có
+  createdAt DateTime @default(now())
+}

@@ -1,0 +1,24 @@
+{
+  "name": "ocr-blockchain-expense",
+  "version": "1.0.0",
+  "description": "FlexiTrip — Hệ thống thanh toán chi phí công tác tự động (AI OCR + Blockchain)",
+  "private": true,
+  "workspaces": [
+    "client",
+    "server",
+    "contracts"
+  ],
+  "scripts": {
+    "dev:server": "npm run dev --workspace=server",
+    "dev:client": "npm run dev --workspace=client",
+    "contracts:node": "npx --workspace=contracts hardhat node",
+    "contracts:deploy": "npx --workspace=contracts hardhat run scripts/deploy.js --network localhost",
+    "contracts:test": "npx --workspace=contracts hardhat test",
+    "db:migrate": "npm run db:migrate --workspace=server",
+    "db:seed": "npm run db:seed --workspace=server"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "license": "MIT"
+}

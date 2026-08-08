@@ -1,0 +1,307 @@
+/* ── Expense Detail Modal ── */
+
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(4px);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    animation: fadeIn 0.2s ease;
+}
+
+.modal-content {
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(24px);
+    border-radius: var(--radius-lg);
+    border: var(--glass-border);
+    box-shadow: var(--shadow-lg);
+    width: 100%;
+    max-width: 600px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    animation: fadeInUp 0.3s ease both;
+}
+
+/* Header */
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.4);
+}
+
+.modal-header__left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.modal-header__title {
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.modal-close {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border-radius: var(--radius-sm);
+    color: var(--color-text-muted);
+    transition: all var(--transition);
+}
+
+.modal-close:hover {
+    background: var(--color-danger-bg);
+    color: var(--color-danger);
+}
+
+/* Tabs */
+.modal-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 12px 24px 0;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.3);
+}
+
+.modal-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text-muted);
+    background: transparent;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all var(--transition);
+}
+
+.modal-tab:hover {
+    color: var(--color-text);
+}
+
+.modal-tab--active {
+    color: var(--color-lavender);
+    border-bottom-color: var(--color-lavender);
+}
+
+/* Body */
+.modal-body {
+    padding: 20px 24px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.modal-tab-content {
+    animation: fadeIn 0.2s ease;
+}
+
+/* Image */
+.detail-image {
+    margin-bottom: 16px;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    background: rgba(238, 242, 247, 0.5);
+    text-align: center;
+}
+
+.detail-image img {
+    max-width: 100%;
+    max-height: 250px;
+    object-fit: contain;
+}
+
+/* Grid rows */
+.detail-grid {
+    display: flex;
+    flex-direction: column;
+}
+
+.detail-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.25);
+}
+
+.detail-row:last-child {
+    border-bottom: none;
+}
+
+.detail-row--full {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+}
+
+.detail-row__label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--color-text-secondary);
+}
+
+.detail-row__value {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-text);
+    text-align: right;
+}
+
+.detail-row__value--highlight {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--color-primary);
+}
+
+.detail-row__value--mono {
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    color: var(--color-text-muted);
+    word-break: break-all;
+}
+
+/* Items */
+.detail-items {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(226, 232, 240, 0.3);
+}
+
+.detail-items__title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 8px;
+}
+
+.detail-items__row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    font-size: 13px;
+    color: var(--color-text-secondary);
+}
+
+.detail-items__amount {
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+/* Policy banner */
+.detail-policy-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+    border-radius: var(--radius-sm);
+    margin-bottom: 16px;
+}
+
+.detail-policy-banner--valid {
+    background: var(--color-success-bg);
+}
+
+.detail-policy-banner--over_budget {
+    background: var(--color-warning-bg);
+}
+
+.detail-policy-banner--invalid_tax_id,
+.detail-policy-banner--invalid_data {
+    background: var(--color-danger-bg);
+}
+
+.detail-policy-banner__icon--valid {
+    color: var(--color-success);
+    flex-shrink: 0;
+}
+
+.detail-policy-banner__icon--warn {
+    color: var(--color-warning);
+    flex-shrink: 0;
+}
+
+.detail-policy-banner__title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-text);
+    margin-bottom: 2px;
+}
+
+.detail-policy-banner__message {
+    font-size: 13px;
+    color: var(--color-text-secondary);
+}
+
+/* Policy checks */
+.detail-checks {
+    margin-top: 16px;
+}
+
+.detail-check-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    font-size: 13px;
+    color: var(--color-text-secondary);
+}
+
+/* Blockchain */
+.detail-blockchain-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: var(--color-success-bg);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 500;
+    color: #065f46;
+    margin-bottom: 16px;
+}
+
+/* Spinner icon */
+.spinner-icon {
+    animation: spin 0.8s linear infinite;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .modal-overlay {
+        padding: 0;
+        align-items: flex-end;
+    }
+
+    .modal-content {
+        max-width: 100%;
+        max-height: 90vh;
+        border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    }
+
+    .modal-header {
+        padding: 16px 20px;
+    }
+
+    .modal-body {
+        padding: 16px 20px;
+    }
+
+    .modal-tabs {
+        padding: 8px 20px 0;
+    }
+}
