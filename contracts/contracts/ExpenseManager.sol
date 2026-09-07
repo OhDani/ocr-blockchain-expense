@@ -10,7 +10,7 @@ import "./MockVND.sol";
  *
  * Luồng chính:
  *   Admin setup: registerEmployee() → setPolicy() → fundCompanyPool()
- *   Employee:    submitExpense(amount, invoiceHash)
+ *   Backend:     submitExpenseFor(employee, amount, hash) [validator gọi thay nhân viên]
  *   Validator:   validateExpense(expenseId, true) → _reimburse() [auto]
  */
 contract ExpenseManager is Ownable {
@@ -20,9 +20,9 @@ contract ExpenseManager is Ownable {
 
     // ──────────────────── Structs ────────────────────
     struct Policy {
-        uint256 dailyLimit;       // Hạn mức chi tiêu / ngày (vVND)
-        uint256 perInvoiceLimit;  // Hạn mức / hóa đơn (vVND)
-        bool exists;              // Đã thiết lập chưa
+        uint256 dailyLimit;
+        uint256 perInvoiceLimit;
+        bool exists;
     }
 
     struct Employee {
@@ -32,8 +32,8 @@ contract ExpenseManager is Ownable {
 
     struct Expense {
         address employee;
-        uint256 amount;           // Số tiền (vVND)
-        string invoiceHash;       // IPFS hash hoặc hash ảnh hóa đơn
+        uint256 amount;
+        string invoiceHash;
         ExpenseStatus status;
         uint256 timestamp;
     }
@@ -68,28 +68,19 @@ contract ExpenseManager is Ownable {
     }
 
     // ──────────────────── Constructor ────────────────────
-    /**
-     * @param _vndToken Địa chỉ MockVND token đã deploy
-     */
     constructor(address _vndToken) Ownable(msg.sender) {
         vndToken = MockVND(_vndToken);
-        validator = msg.sender; // Mặc định admin = validator (POC)
+        validator = msg.sender;
     }
 
     // ──────────────────── Admin Functions ────────────────────
 
-    /**
-     * @dev Đăng ký nhân viên + cấp bậc.
-     */
     function registerEmployee(address _employee, EmployeeTier _tier) external onlyOwner {
         require(!employees[_employee].registered, "Employee already registered");
         employees[_employee] = Employee({ tier: _tier, registered: true });
         emit EmployeeRegistered(_employee, _tier);
     }
 
-    /**
-     * @dev Thiết lập chính sách chi tiêu theo cấp bậc.
-     */
     function setPolicy(
         EmployeeTier _tier,
         uint256 _dailyLimit,
@@ -103,10 +94,6 @@ contract ExpenseManager is Ownable {
         emit PolicySet(_tier, _dailyLimit, _perInvoiceLimit);
     }
 
-    /**
-     * @dev Nạp vVND vào quỹ công ty (balance của contract này).
-     *      Admin phải approve trước: vndToken.approve(expenseManager, amount)
-     */
     function fundCompanyPool(uint256 _amount) external onlyOwner {
         require(_amount > 0, "Amount must be > 0");
         bool success = vndToken.transferFrom(msg.sender, address(this), _amount);
@@ -114,9 +101,6 @@ contract ExpenseManager is Ownable {
         emit CompanyPoolFunded(_amount, vndToken.balanceOf(address(this)));
     }
 
-    /**
-     * @dev Thay đổi validator (người duyệt chi phí).
-     */
     function setValidator(address _newValidator) external onlyOwner {
         require(_newValidator != address(0), "Invalid validator address");
         validator = _newValidator;
@@ -125,9 +109,7 @@ contract ExpenseManager is Ownable {
     // ──────────────────── Employee Functions ────────────────────
 
     /**
-     * @dev Nhân viên nộp chi phí.
-     * @param _amount Số tiền (vVND)
-     * @param _invoiceHash Hash của hóa đơn (từ AI OCR)
+     * @dev Nhân viên tự nộp chi phí (gọi trực tiếp từ ví nhân viên).
      */
     function submitExpense(
         uint256 _amount,
@@ -136,7 +118,6 @@ contract ExpenseManager is Ownable {
         require(_amount > 0, "Amount must be > 0");
         require(bytes(_invoiceHash).length > 0, "Invoice hash required");
 
-        // Kiểm tra hạn mức theo cấp bậc
         EmployeeTier tier = employees[msg.sender].tier;
         Policy memory policy = policies[tier];
         require(policy.exists, "Policy not set for this tier");
@@ -152,11 +133,42 @@ contract ExpenseManager is Ownable {
         }));
 
         employeeExpenseIds[msg.sender].push(expenseId);
-
         emit ExpenseSubmitted(expenseId, msg.sender, _amount, _invoiceHash);
     }
 
     // ──────────────────── Validator Functions ────────────────────
+
+    /**
+     * @dev Validator/Backend submit expense ĐẠI DIỆN cho nhân viên.
+     *      Dùng khi backend quản lý ký transaction thay nhân viên (POC).
+     *      Reimburse sẽ chuyển vVND đến ví _employee (KHÔNG phải msg.sender).
+     */
+    function submitExpenseFor(
+        address _employee,
+        uint256 _amount,
+        string calldata _invoiceHash
+    ) external onlyValidator {
+        require(_amount > 0, "Amount must be > 0");
+        require(bytes(_invoiceHash).length > 0, "Invoice hash required");
+        require(employees[_employee].registered, "Employee not registered");
+
+        EmployeeTier tier = employees[_employee].tier;
+        Policy memory policy = policies[tier];
+        require(policy.exists, "Policy not set for this tier");
+        require(_amount <= policy.perInvoiceLimit, "Exceeds per-invoice limit");
+
+        uint256 expenseId = expenses.length;
+        expenses.push(Expense({
+            employee: _employee,
+            amount: _amount,
+            invoiceHash: _invoiceHash,
+            status: ExpenseStatus.Pending,
+            timestamp: block.timestamp
+        }));
+
+        employeeExpenseIds[_employee].push(expenseId);
+        emit ExpenseSubmitted(expenseId, _employee, _amount, _invoiceHash);
+    }
 
     /**
      * @dev Validator duyệt hoặc từ chối chi phí.
@@ -179,9 +191,6 @@ contract ExpenseManager is Ownable {
 
     // ──────────────────── Internal Functions ────────────────────
 
-    /**
-     * @dev Tự động chuyển vVND từ quỹ công ty → ví nhân viên.
-     */
     function _reimburse(uint256 _expenseId) internal {
         Expense memory expense = expenses[_expenseId];
         uint256 poolBalance = vndToken.balanceOf(address(this));
@@ -195,23 +204,14 @@ contract ExpenseManager is Ownable {
 
     // ──────────────────── View Functions ────────────────────
 
-    /**
-     * @dev Xem danh sách expense IDs của nhân viên.
-     */
     function getEmployeeExpenseIds(address _employee) external view returns (uint256[] memory) {
         return employeeExpenseIds[_employee];
     }
 
-    /**
-     * @dev Tổng số expense đã nộp.
-     */
     function getExpenseCount() external view returns (uint256) {
         return expenses.length;
     }
 
-    /**
-     * @dev Số dư quỹ công ty.
-     */
     function getCompanyPoolBalance() external view returns (uint256) {
         return vndToken.balanceOf(address(this));
     }

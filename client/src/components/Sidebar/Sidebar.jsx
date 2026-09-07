@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import {
     LayoutDashboard, Plane, FileText, Camera,
     Building2, ClipboardCheck, BarChart3, LogOut, Settings, Users,
+    PieChart, Bell, Activity, Link2,
 } from 'lucide-react';
 import NotificationBell from '../NotificationBell/NotificationBell.jsx';
 import './Sidebar.css';
@@ -20,24 +21,47 @@ export default function Sidebar({ isOpen, onClose }) {
         navigate('/login');
     };
 
-    // Admin = kế toán → chỉ menu quản trị, không đi công tác
-    // Employee & Manager → menu nhân viên
-    const menuItems = user?.role === 'ADMIN'
-        ? [
+    let menuItems = [];
+    if (user?.role === 'ADMIN') {
+        menuItems = [
             { to: '/', icon: Building2, label: 'Bảng quản trị' },
             { to: '/admin/expenses', icon: ClipboardCheck, label: 'Duyệt chi phí' },
             { to: '/admin/users', icon: Users, label: 'Danh sách nhân viên' },
             { to: '/admin/departments', icon: BarChart3, label: 'Phòng ban' },
+            { to: '/admin/blockchain', icon: Link2, label: 'Blockchain' },
             { divider: true },
+            { to: '/reports', icon: PieChart, label: 'Báo cáo' },
+            { to: '/notifications', icon: Bell, label: 'Thông báo' },
+            { to: '/admin/settings', icon: Settings, label: 'Cấu hình' },
             { to: '/settings', icon: Settings, label: 'Cài đặt' },
-        ]
-        : [
+        ];
+    } else if (user?.role === 'MANAGER') {
+        menuItems = [
             { to: '/', icon: LayoutDashboard, label: 'Tổng quan' },
             { to: '/trips', icon: Plane, label: 'Chuyến công tác' },
             { to: '/expenses', icon: FileText, label: 'Chi phí' },
             { to: '/upload', icon: Camera, label: 'Upload hóa đơn' },
+            { divider: true },
+            { to: '/admin/users', icon: Users, label: 'Danh sách nhân viên' },
+            { to: '/reports', icon: PieChart, label: 'Báo cáo' },
+            { to: '/activity', icon: Activity, label: 'Lịch sử' },
+            { to: '/notifications', icon: Bell, label: 'Thông báo' },
             { to: '/settings', icon: Settings, label: 'Cài đặt' },
         ];
+    } else {
+        // EMPLOYEE
+        menuItems = [
+            { to: '/', icon: LayoutDashboard, label: 'Tổng quan' },
+            { to: '/trips', icon: Plane, label: 'Chuyến công tác' },
+            { to: '/expenses', icon: FileText, label: 'Chi phí' },
+            { to: '/upload', icon: Camera, label: 'Upload hóa đơn' },
+            { divider: true },
+            { to: '/reports', icon: PieChart, label: 'Báo cáo' },
+            { to: '/activity', icon: Activity, label: 'Lịch sử' },
+            { to: '/notifications', icon: Bell, label: 'Thông báo' },
+            { to: '/settings', icon: Settings, label: 'Cài đặt' },
+        ];
+    }
 
     return (
         <aside className={`sidebar ${isOpen ? 'sidebar--open' : ''}`}>

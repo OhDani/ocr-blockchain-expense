@@ -11,8 +11,7 @@
   "scripts": {
     "dev:server": "npm run dev --workspace=server",
     "dev:client": "npm run dev --workspace=client",
-    "contracts:node": "npx --workspace=contracts hardhat node",
-    "contracts:deploy": "npx --workspace=contracts hardhat run scripts/deploy.js --network localhost",
+    "contracts:deploy": "npx --workspace=contracts hardhat run scripts/deploy-sepolia.js --network sepolia",
     "contracts:test": "npx --workspace=contracts hardhat test",
     "db:migrate": "npm run db:migrate --workspace=server",
     "db:seed": "npm run db:seed --workspace=server"

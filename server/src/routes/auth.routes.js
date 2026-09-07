@@ -20,7 +20,7 @@ router.post('/register', authenticate, async (req, res, next) => {
             return res.status(403).json({ success: false, error: 'Chỉ Admin tạo được tài khoản' });
         }
 
-        const { email, password, name, role, department, walletAddress } = req.body;
+        const { email, password, name, role, departmentId, walletAddress } = req.body;
 
         // Validate
         if (!email || !password || !name) {
@@ -41,10 +41,15 @@ router.post('/register', authenticate, async (req, res, next) => {
                 password: hashedPassword,
                 name,
                 role: role || 'EMPLOYEE',
-                department,
+                departmentId,
                 walletAddress,
+                ...(walletAddress && {
+                    wallet: {
+                        create: { address: walletAddress, balance: 0 }
+                    }
+                })
             },
-            select: { id: true, email: true, name: true, role: true, department: true, walletAddress: true, avatarUrl: true },
+            select: { id: true, email: true, name: true, role: true, department: { select: { name: true, id: true } }, walletAddress: true, wallet: true, avatarUrl: true },
         });
 
         res.status(201).json({ success: true, data: user });
@@ -92,7 +97,8 @@ router.post('/login', async (req, res, next) => {
                     email: user.email,
                     name: user.name,
                     role: user.role,
-                    department: user.department,
+                    department: user.department?.name,
+                    departmentId: user.departmentId,
                     walletAddress: user.walletAddress,
                     avatarUrl: user.avatarUrl,
                 },
@@ -115,7 +121,8 @@ router.get('/me', authenticate, async (req, res, next) => {
                 email: true,
                 name: true,
                 role: true,
-                department: true,
+                department: { select: { name: true } },
+                wallet: true,
                 walletAddress: true,
                 avatarUrl: true,
                 createdAt: true,

@@ -19,6 +19,13 @@ YÊU CẦU:
 8. Chỉ trả về những gì THỰC SỰ có trên hóa đơn — KHÔNG bịa thêm thông tin không tồn tại.
 9. Nếu không đọc rõ một giá trị, ghi null thay vì đoán.
 10. Tự phát hiện loại hóa đơn và thêm trường "invoice_type" (ví dụ: "restaurant", "hotel", "supermarket", "taxi", "fuel", "airline", "medical", "other").
+11. Đóng vai trò chuyên gia chống gian lận (Fraud Detection), thêm một trường "fraud_analysis" là một Object chứa:
+   - "score": (Number 0-100) Thể hiện xác suất hóa đơn này là giả mạo, bị chỉnh sửa hoặc tạo bằng AI. Càng cao càng đáng ngờ.
+   - "flags": (Array of Strings) Danh sách các lý do nghi ngờ (nếu có, không có thì để mảng rỗng). Phải xem xét các dấu hiệu: 
+      + Dấu hiệu chỉnh sửa bằng Photoshop (pixel lệch, màu không đều, font chữ không đồng nhất).
+      + Hóa đơn tạo HOÀN TOÀN bằng AI (Synthetic Image/DALL-E) (bố cục quá hoàn hảo, hallucinated text/ký tự bị méo mó vô nghĩa, không có nếp gấp hay bóng đổ tự nhiên của giấy).
+      + Thông tin phi logic (Ví dụ: VAT tính sai so với tổng tiền, địa chỉ/MST mâu thuẫn).
+12. Nếu có dấu hiệu gian lận nào, hãy điền đầy đủ vào "flags" và cho "score" > 50. Nếu hóa đơn trông hoàn toàn bình thường, thực tế, "score" = 0.
 
 VÍ DỤ TRƯỜNG CÓ THỂ CÓ (tùy loại hóa đơn):
 - store_name, store_address, store_phone, tax_id

@@ -29,8 +29,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' }));
 app.use(express.json());
 
-// Serve uploaded files
-app.use('/uploads', express.static(join(__dirname, '..', 'uploads')));
+// Ảnh lưu trong DB (bảng Image), serve qua /api/expenses/:id/image
 
 // ──────── Routes ────────
 app.use('/api/auth', authRoutes);
@@ -59,7 +58,7 @@ app.listen(PORT, () => {
     console.log(`\n🚀 FlexiTrip Server running at http://localhost:${PORT}`);
     console.log(`📝 API docs: http://localhost:${PORT}/api/health\n`);
 
-    // Khởi tạo blockchain (không bắt buộc — server chạy được mà không có Hardhat)
+    // Khởi tạo blockchain (không bắt buộc — server chạy được mà không có blockchain)
     initBlockchain();
 });
 

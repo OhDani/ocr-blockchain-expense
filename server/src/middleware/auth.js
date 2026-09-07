@@ -12,16 +12,24 @@ const prisma = new PrismaClient();
  * Middleware xác thực — gắn user vào req.user
  */
 export function authenticate(req, res, next) {
+    // Hỗ trợ token từ query param (cho <img src> không gửi được header)
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const queryToken = req.query?.token;
+    let token = null;
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.split(' ')[1];
+    } else if (queryToken) {
+        token = queryToken;
+    }
+
+    if (!token) {
         return res.status(401).json({ success: false, error: 'Token không hợp lệ hoặc thiếu' });
     }
 
-    const token = authHeader.split(' ')[1];
-
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        req.user = decoded; // { id, email, role }
+        req.user = decoded;
         next();
     } catch (error) {
         return res.status(401).json({ success: false, error: 'Token hết hạn hoặc không hợp lệ' });

@@ -2,11 +2,11 @@
  * SettingsPage.jsx — Cài đặt tài khoản
  */
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
 import { userAPI } from '../../api/client.js';
-import { User, Mail, Briefcase, Building2, Wallet, Shield, Camera } from 'lucide-react';
+import { User, Mail, Briefcase, Building2, Wallet, Shield, Camera, Edit2, Check } from 'lucide-react';
 
 const ROLE_LABELS = {
     ADMIN: 'Giám đốc / Quản trị viên',
@@ -19,6 +19,17 @@ export default function SettingsPage() {
     const toast = useToast();
     const [uploading, setUploading] = useState(false);
     const fileRef = useRef(null);
+
+    const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    const [changingPwd, setChangingPwd] = useState(false);
+
+    const [editingDept, setEditingDept] = useState(false);
+    const [selectedDeptId, setSelectedDeptId] = useState('');
+    const [depts, setDepts] = useState([]);
+
+    useEffect(() => {
+        userAPI.departments().then(res => setDepts(res.data)).catch(console.error);
+    }, []);
 
     if (!user) return null;
 
@@ -51,6 +62,37 @@ export default function SettingsPage() {
     };
 
     const avatarSrc = user.avatarUrl ? `http://localhost:3000${user.avatarUrl}` : null;
+
+    const handlePasswordChange = async (e) => {
+        e.preventDefault();
+        if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+            return toast('Mật khẩu mới không khớp!', 'error');
+        }
+        setChangingPwd(true);
+        try {
+            await userAPI.changePassword({
+                currentPassword: passwordForm.currentPassword,
+                newPassword: passwordForm.newPassword,
+            });
+            toast('Đổi mật khẩu thành công!', 'success');
+            setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+        } catch (err) {
+            toast(err.message || 'Lỗi đổi mật khẩu', 'error');
+        } finally {
+            setChangingPwd(false);
+        }
+    };
+
+    const handleSaveDept = async () => {
+        try {
+            const res = await userAPI.updateProfile({ departmentId: selectedDeptId });
+            if (updateUser) updateUser(res.data);
+            setEditingDept(false);
+            toast('Cập nhật phòng ban thành công!', 'success');
+        } catch (err) {
+            toast(err.message, 'error');
+        }
+    };
 
     return (
         <div>
@@ -113,9 +155,29 @@ export default function SettingsPage() {
                             <span className="badge badge-info">{ROLE_LABELS[user.role] || user.role}</span>
                         </div>
                     </div>
-                    <div className="detail-row">
+                    <div className="detail-row" style={{ alignItems: 'center' }}>
                         <div className="detail-row__label"><Building2 size={14} /> Phòng ban</div>
-                        <div className="detail-row__value">{user.department || '—'}</div>
+                        <div className="detail-row__value" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            {editingDept ? (
+                                <>
+                                    <select
+                                        className="form-input"
+                                        style={{ width: 'auto', padding: '4px 8px', fontSize: 13 }}
+                                        value={selectedDeptId}
+                                        onChange={e => setSelectedDeptId(e.target.value)}
+                                    >
+                                        <option value="">-- Chọn phòng ban --</option>
+                                        {depts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                                    </select>
+                                    <button onClick={handleSaveDept} style={{ background: 'none', border: 'none', color: 'var(--color-primary)', cursor: 'pointer', padding: 4 }}><Check size={16} /></button>
+                                </>
+                            ) : (
+                                <>
+                                    <span>{user.department?.name || '—'}</span>
+                                    <button onClick={() => { setEditingDept(true); setSelectedDeptId(user.department?.id || ''); }} style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', padding: 4 }} title="Đổi phòng ban"><Edit2 size={14} /></button>
+                                </>
+                            )}
+                        </div>
                     </div>
                     {user.walletAddress && (
                         <div className="detail-row">
@@ -161,13 +223,44 @@ export default function SettingsPage() {
                 </p>
             </div>
 
+            {/* Change Password */}
+            <div className="card" style={{ marginBottom: 24 }}>
+                <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>Đổi mật khẩu</h3>
+                <form onSubmit={handlePasswordChange} style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 400 }}>
+                    <div className="form-group">
+                        <label>Mật khẩu hiện tại</label>
+                        <input className="form-input" type="password" required
+                            value={passwordForm.currentPassword}
+                            onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                        />
+                    </div>
+                    <div className="form-group">
+                        <label>Mật khẩu mới</label>
+                        <input className="form-input" type="password" required minLength={6}
+                            value={passwordForm.newPassword}
+                            onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                        />
+                    </div>
+                    <div className="form-group">
+                        <label>Xác nhận mật khẩu mới</label>
+                        <input className="form-input" type="password" required minLength={6}
+                            value={passwordForm.confirmPassword}
+                            onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                        />
+                    </div>
+                    <button type="submit" className="btn btn-primary" disabled={changingPwd} style={{ alignSelf: 'flex-start' }}>
+                        {changingPwd ? 'Đang cập nhật...' : 'Cập nhật mật khẩu'}
+                    </button>
+                </form>
+            </div>
+
             {/* System info */}
             <div className="card">
                 <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>Hệ thống</h3>
                 <div className="detail-grid">
                     <InfoRow label="Phiên bản" value="FlexiTrip v1.0.0" />
                     <InfoRow label="AI Engine" value="Google Gemini Vision 2.0" />
-                    <InfoRow label="Blockchain" value="Ethereum (Hardhat local)" />
+                    <InfoRow label="Blockchain" value="Ethereum (Sepolia Testnet)" />
                     <InfoRow label="Smart Contract" value="ExpenseManager + MockVND" />
                 </div>
             </div>

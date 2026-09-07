@@ -214,12 +214,15 @@ export default function AdminDashboard() {
                                                 {formatVND(tx.amount)}
                                             </td>
                                             <td style={tdStyle}>
-                                                <code style={{
-                                                    fontSize: 11, padding: '2px 6px', borderRadius: 4,
-                                                    background: 'rgba(124,108,240,0.08)', color: '#7c6cf0',
-                                                }}>
-                                                    {tx.txHash?.substring(0, 10)}...{tx.txHash?.substring(tx.txHash.length - 6)}
-                                                </code>
+                                                <a href={`https://sepolia.etherscan.io/tx/${tx.txHash}`} target="_blank" rel="noopener noreferrer"
+                                                    style={{ textDecoration: 'none' }}>
+                                                    <code style={{
+                                                        fontSize: 11, padding: '2px 6px', borderRadius: 4,
+                                                        background: 'rgba(124,108,240,0.08)', color: '#7c6cf0', cursor: 'pointer',
+                                                    }}>
+                                                        {tx.txHash?.substring(0, 10)}...{tx.txHash?.substring(tx.txHash.length - 6)} ↗
+                                                    </code>
+                                                </a>
                                             </td>
                                             <td style={{ ...tdStyle, textAlign: 'right', color: 'var(--color-text-muted)', fontSize: 12 }}>
                                                 {timeAgo(tx.createdAt)}

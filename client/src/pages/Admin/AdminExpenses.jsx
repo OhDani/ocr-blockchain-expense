@@ -4,7 +4,7 @@
 
 import { useState, useEffect } from 'react';
 import { adminAPI, expenseAPI } from '../../api/client.js';
-import { ClipboardCheck, Check, X, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
+import { ClipboardCheck, Check, X, ChevronLeft, ChevronRight, Eye, RotateCcw } from 'lucide-react';
 import { useToast } from '../../context/ToastContext.jsx';
 import ExpenseDetailModal from '../../components/ExpenseDetailModal/ExpenseDetailModal.jsx';
 
@@ -46,8 +46,33 @@ export default function AdminExpenses() {
     const handleApprove = async (id) => {
         setActionLoading(id);
         try {
-            await expenseAPI.approve(id);
-            toast('Đã duyệt chi phí thành công!', 'success');
+            const res = await expenseAPI.approve(id);
+            if (res.blockchain?.error) {
+                toast(`Đã duyệt nhưng blockchain lỗi: ${res.blockchain.error}. Có thể thử lại sau.`, 'warning');
+            } else if (res.data?.status === 'REIMBURSED') {
+                toast('Đã duyệt và hoàn ứng thành công qua blockchain!', 'success');
+            } else {
+                toast('Đã duyệt chi phí thành công!', 'success');
+            }
+            fetchExpenses();
+        } catch (err) {
+            toast(err.message, 'error');
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const handleRetry = async (id) => {
+        setActionLoading(id);
+        try {
+            const res = await expenseAPI.retry(id);
+            if (res.blockchain?.error) {
+                toast(`Thử lại thất bại: ${res.blockchain.error}`, 'error');
+            } else if (res.data?.status === 'REIMBURSED') {
+                toast('Hoàn ứng blockchain thành công!', 'success');
+            } else {
+                toast('Đã thử lại, kiểm tra trạng thái.', 'info');
+            }
             fetchExpenses();
         } catch (err) {
             toast(err.message, 'error');
@@ -127,7 +152,7 @@ export default function AdminExpenses() {
                                                 <div style={{ fontWeight: 500 }}>{exp.user?.name}</div>
                                                 <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{exp.user?.email}</div>
                                             </td>
-                                            <td style={{ color: 'var(--color-text-secondary)' }}>{exp.user?.department || '—'}</td>
+                                            <td style={{ color: 'var(--color-text-secondary)' }}>{exp.user?.department?.name || '—'}</td>
                                             <td style={{ fontWeight: 600 }}>{exp.amount.toLocaleString('vi-VN')}đ</td>
                                             <td>{exp.invoiceType || '—'}</td>
                                             <td><span className={`badge ${status.className}`}>{status.label}</span></td>
@@ -158,6 +183,18 @@ export default function AdminExpenses() {
                                                                 <X size={14} />
                                                             </button>
                                                         </>
+                                                    )}
+                                                    {exp.status === 'APPROVED' && (
+                                                        <button
+                                                            className="btn btn-sm btn-primary"
+                                                            onClick={() => handleRetry(exp.id)}
+                                                            disabled={actionLoading === exp.id}
+                                                            title="Thử hoàn ứng lại (blockchain)"
+                                                            style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+                                                        >
+                                                            <RotateCcw size={14} />
+                                                            <span style={{ fontSize: 12 }}>Thử lại</span>
+                                                        </button>
                                                     )}
                                                 </div>
                                             </td>

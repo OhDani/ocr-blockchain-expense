@@ -1,0 +1,124 @@
+/* ImagePreviewModal.css — Styles for invoice image preview */
+
+.img-preview-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.2s ease;
+}
+
+.img-preview-container {
+    width: 80vw;
+    height: 85vh;
+    display: flex;
+    flex-direction: column;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #1a1a2e;
+}
+
+.img-preview-container.img-preview-fullscreen {
+    width: 100vw;
+    height: 100vh;
+    border-radius: 0;
+}
+
+/* Toolbar */
+.img-preview-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: rgba(0, 0, 0, 0.5);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    flex-shrink: 0;
+}
+
+.img-preview-toolbar__left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.img-preview-toolbar__title {
+    color: #fff;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.img-preview-toolbar__zoom {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 12px;
+    font-family: monospace;
+    background: rgba(255, 255, 255, 0.08);
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.img-preview-toolbar__actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.img-preview-toolbar__actions button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.img-preview-toolbar__actions button:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+
+.img-preview-close {
+    margin-left: 8px;
+}
+
+.img-preview-close:hover {
+    background: rgba(239, 68, 68, 0.3) !important;
+    color: #f87171 !important;
+}
+
+/* Viewport */
+.img-preview-viewport {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: auto;
+    padding: 24px;
+}
+
+.img-preview-image {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    transition: transform 0.2s ease;
+    border-radius: 4px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    user-select: none;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}

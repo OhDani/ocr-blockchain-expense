@@ -101,6 +101,10 @@ export const expenseAPI = {
     approve: (id) =>
         request(`/expenses/${id}/approve`, { method: 'PATCH' }),
 
+    // Retry = gọi lại approve cho expense đã APPROVED nhưng blockchain fail
+    retry: (id) =>
+        request(`/expenses/${id}/approve`, { method: 'PATCH' }),
+
     reject: (id, reason) =>
         request(`/expenses/${id}/reject`, {
             method: 'PATCH',
@@ -115,6 +119,12 @@ export const expenseAPI = {
 
     remove: (id) =>
         request(`/expenses/${id}`, { method: 'DELETE' }),
+
+    // Lấy ảnh hóa đơn (trả binary từ DB)
+    getImageUrl: (id) => {
+        const token = localStorage.getItem('token');
+        return `${API_BASE}/expenses/${id}/image?token=${token}`;
+    },
 };
 
 // ──────── Admin ────────
@@ -126,15 +136,31 @@ export const adminAPI = {
         return request(`/admin/expenses?${query}`);
     },
 
-    departments: () => request('/admin/departments'),
+    departments: () => request('/admin/departments'), // statistics
+
+    // Config management
+    departmentsList: () => request('/admin/departments/list'),
+    createDepartment: (data) => request('/admin/departments', { method: 'POST', body: JSON.stringify(data) }),
+    updateDepartment: (id, data) => request(`/admin/departments/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    deleteDepartment: (id) => request(`/admin/departments/${id}`, { method: 'DELETE' }),
+
+    policyLimits: () => request('/admin/policy-limits'),
+    updatePolicyLimit: (id, data) => request(`/admin/policy-limits/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+
+    auditLogs: () => request('/admin/audit-logs'),
 
     users: () => request('/admin/users'),
+    createUser: (data) => request('/admin/users', { method: 'POST', body: JSON.stringify(data) }),
 
     updateUser: (id, data) =>
         request(`/admin/users/${id}`, {
             method: 'PATCH',
             body: JSON.stringify(data),
         }),
+
+    reports: () => request('/admin/reports'),
+    reportsPersonal: () => request('/admin/reports/personal'),
+    blockchain: () => request('/admin/blockchain'),
 };
 
 // ──────── User ────────
@@ -145,7 +171,22 @@ export const userAPI = {
             body: formData,
         }),
 
+    departments: () => request('/user/departments'),
+
+    changePassword: (data) =>
+        request('/user/password', {
+            method: 'PATCH',
+            body: JSON.stringify(data),
+        }),
+
+    updateProfile: (data) =>
+        request('/user/profile', {
+            method: 'PATCH',
+            body: JSON.stringify(data),
+        }),
+
     me: () => request('/user/me'),
+    activity: () => request('/user/activity'),
 };
 
 // ──────── Notifications ────────

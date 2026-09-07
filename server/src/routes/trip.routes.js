@@ -57,7 +57,7 @@ router.get('/', async (req, res, next) => {
         const trips = await prisma.trip.findMany({
             where,
             include: {
-                user: { select: { id: true, name: true, department: true } },
+                user: { select: { id: true, name: true, department: { select: { name: true } } } },
                 expenses: {
                     select: { id: true, amount: true, status: true, invoiceType: true },
                 },
@@ -79,7 +79,7 @@ router.get('/:id', async (req, res, next) => {
         const trip = await prisma.trip.findUnique({
             where: { id: req.params.id },
             include: {
-                user: { select: { id: true, name: true, department: true } },
+                user: { select: { id: true, name: true, department: { select: { name: true } } } },
                 expenses: {
                     orderBy: { createdAt: 'desc' },
                 },

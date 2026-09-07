@@ -278,7 +278,7 @@ export default function TripsPage() {
                                 style={{ width: 'auto', minWidth: 180, padding: '6px 10px', fontSize: 13 }}
                             >
                                 <option value="">Tất cả phòng ban</option>
-                                {[...new Set(trips.map(t => t.user?.department).filter(Boolean))].map(d => (
+                                {[...new Set(trips.map(t => t.user?.department?.name).filter(Boolean))].map(d => (
                                     <option key={d} value={d}>{d}</option>
                                 ))}
                             </select>
@@ -297,7 +297,7 @@ export default function TripsPage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {trips.filter(t => !deptFilter || t.user?.department === deptFilter).map((t) => {
+                            {trips.filter(t => !deptFilter || t.user?.department?.name === deptFilter).map((t) => {
                                 const status = TRIP_STATUS[t.status] || TRIP_STATUS.PLANNED;
                                 const totalExpenses = t.expenses?.reduce((sum, e) => sum + e.amount, 0) || 0;
                                 return (
@@ -310,7 +310,7 @@ export default function TripsPage() {
                                         </td>
                                         <td>
                                             <div style={{ fontWeight: 500 }}>{t.user?.name || '—'}</div>
-                                            <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{t.user?.department || ''}</div>
+                                            <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{t.user?.department?.name || ''}</div>
                                         </td>
                                         <td style={{ color: 'var(--color-text-muted)' }}>
                                             {new Date(t.startDate).toLocaleDateString('vi-VN')} → {new Date(t.endDate).toLocaleDateString('vi-VN')}

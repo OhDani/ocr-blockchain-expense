@@ -4,7 +4,9 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { adminAPI } from '../../api/client.js';
-import { Users, Shield, UserCheck, Search } from 'lucide-react';
+import { Users, Shield, UserCheck, Search, Plus, X, Save } from 'lucide-react';
+import Pagination, { usePagination } from '../../components/Pagination/Pagination.jsx';
+import { useToast } from '../../context/ToastContext.jsx';
 
 const ROLE_MAP = {
     ADMIN: { label: 'Quản trị viên', icon: Shield, color: '#ef4444', bg: 'rgba(239,68,68,0.08)' },
@@ -18,17 +20,33 @@ export default function AdminUsers() {
     const [filterRole, setFilterRole] = useState('');
     const [filterDept, setFilterDept] = useState('');
     const [search, setSearch] = useState('');
+    const [page, setPage] = useState(1);
+    const toast = useToast();
 
-    useEffect(() => {
+    // New User State
+    const [showForm, setShowForm] = useState(false);
+    const [creating, setCreating] = useState(false);
+    const [form, setForm] = useState({ name: '', email: '', password: '', role: 'EMPLOYEE', departmentId: '' });
+    const [dbDepartments, setDbDepartments] = useState([]);
+
+    const fetchUsers = () => {
+        setLoading(true);
         adminAPI.users()
             .then((res) => setUsers(res.data))
             .catch(console.error)
             .finally(() => setLoading(false));
+    };
+
+    useEffect(() => {
+        fetchUsers();
+        adminAPI.departmentsList()
+            .then(res => setDbDepartments(res.data))
+            .catch(console.error);
     }, []);
 
     // Lấy danh sách phòng ban unique
     const departments = useMemo(() => {
-        const depts = [...new Set(users.map(u => u.department).filter(Boolean))];
+        const depts = [...new Set(users.map(u => u.department?.name).filter(Boolean))];
         return depts.sort();
     }, [users]);
 
@@ -36,7 +54,7 @@ export default function AdminUsers() {
     const filtered = useMemo(() => {
         return users.filter(u => {
             if (filterRole && u.role !== filterRole) return false;
-            if (filterDept && u.department !== filterDept) return false;
+            if (filterDept && u.department?.name !== filterDept) return false;
             if (search) {
                 const q = search.toLowerCase();
                 if (!u.name?.toLowerCase().includes(q) && !u.email?.toLowerCase().includes(q)) return false;
@@ -45,22 +63,103 @@ export default function AdminUsers() {
         });
     }, [users, filterRole, filterDept, search]);
 
+    // Reset page on filter change
+    useEffect(() => { setPage(1); }, [filterRole, filterDept, search]);
+
+    const { totalPages, getPage } = usePagination(filtered, 10);
+    const paginatedUsers = getPage(page);
+
     // Thống kê role
     const roleCounts = users.reduce((acc, u) => {
         acc[u.role] = (acc[u.role] || 0) + 1;
         return acc;
     }, {});
 
+    const handleCreateUser = async (e) => {
+        e.preventDefault();
+        setCreating(true);
+        try {
+            await adminAPI.createUser(form);
+            toast('Tạo nhân viên thành công!', 'success');
+            setShowForm(false);
+            setForm({ name: '', email: '', password: '', role: 'EMPLOYEE', departmentId: '' });
+            fetchUsers();
+        } catch (err) {
+            toast(err.message || 'Lỗi tạo nhân viên', 'error');
+        } finally {
+            setCreating(false);
+        }
+    };
+
+    // Tất cả phòng ban để list vô select (Lấy unique object nếu cần, hiện tại map từ users sẽ sót phòng ban trống)
+    // Để có list chính xác nhất thì nên load từ config, nhưng tạm map array string:
+    const departmentNames = [...new Set(users.map(u => u.department?.name).filter(Boolean))].sort();
+
     if (loading) return <div className="loading-center"><div className="spinner" /></div>;
 
     return (
         <div>
             <div className="page-header">
-                <h1>Danh sách nhân viên</h1>
-                <span style={{ color: 'var(--color-text-muted)', fontSize: 14 }}>
-                    {users.length} người dùng
-                </span>
+                <div>
+                    <h1>Danh sách nhân viên</h1>
+                    <span style={{ color: 'var(--color-text-muted)', fontSize: 14 }}>
+                        {users.length} người dùng
+                    </span>
+                </div>
+                <button className="btn btn-primary" onClick={() => setShowForm(true)}>
+                    <Plus size={16} /> Thêm nhân viên
+                </button>
             </div>
+
+            {/* Modal Tạo User */}
+            {showForm && (
+                <div className="modal-overlay" onClick={() => setShowForm(false)}>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 500 }}>
+                        <div className="modal-header">
+                            <h2 className="modal-header__title">Tạo tài khoản nhân viên</h2>
+                            <button className="modal-close" onClick={() => setShowForm(false)}><X size={20} /></button>
+                        </div>
+                        <div className="modal-body">
+                            <form onSubmit={handleCreateUser} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                <div className="form-group">
+                                    <label>Họ và tên *</label>
+                                    <input className="form-input" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                                </div>
+                                <div className="form-group">
+                                    <label>Email *</label>
+                                    <input className="form-input" type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                                </div>
+                                <div className="form-group">
+                                    <label>Mật khẩu *</label>
+                                    <input className="form-input" type="text" required minLength={6} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                                    <div className="form-group">
+                                        <label>Vai trò *</label>
+                                        <select className="form-input" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
+                                            <option value="EMPLOYEE">Nhân viên</option>
+                                            <option value="MANAGER">Trưởng phòng</option>
+                                            <option value="ADMIN">Quản trị viên</option>
+                                        </select>
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Phòng ban</label>
+                                        <select className="form-input" value={form.departmentId} onChange={(e) => setForm({ ...form, departmentId: e.target.value })}>
+                                            <option value="">-- Chưa phân phòng --</option>
+                                            {dbDepartments.map(d => (
+                                                <option key={d.id} value={d.id}>{d.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+                                <button type="submit" className="btn btn-primary" disabled={creating} style={{ marginTop: 8 }}>
+                                    {creating ? 'Đang tạo...' : 'Lưu tài khoản'}
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Role summary cards */}
             <div className="stats-grid" style={{ marginBottom: 24 }}>
@@ -152,7 +251,7 @@ export default function AdminUsers() {
                                         Không tìm thấy nhân viên phù hợp
                                     </td>
                                 </tr>
-                            ) : filtered.map((u) => {
+                            ) : paginatedUsers.map((u) => {
                                 const roleInfo = ROLE_MAP[u.role] || ROLE_MAP.EMPLOYEE;
                                 return (
                                     <tr key={u.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
@@ -182,8 +281,8 @@ export default function AdminUsers() {
                                             </span>
                                         </td>
                                         <td style={tdStyle}>
-                                            <span style={{ color: u.department ? 'inherit' : 'var(--color-text-muted)' }}>
-                                                {u.department || '—'}
+                                            <span style={{ color: u.department?.name ? 'inherit' : 'var(--color-text-muted)' }}>
+                                                {u.department?.name || '—'}
                                             </span>
                                         </td>
                                         <td style={{ ...tdStyle, textAlign: 'center' }}>{u._count?.expenses || 0}</td>
@@ -194,8 +293,9 @@ export default function AdminUsers() {
                         </tbody>
                     </table>
                 </div>
+                <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
                 {filtered.length > 0 && (
-                    <div style={{ padding: '12px 16px', fontSize: 12, color: 'var(--color-text-muted)', borderTop: '1px solid var(--color-border)' }}>
+                    <div style={{ padding: '8px 16px', fontSize: 12, color: 'var(--color-text-muted)' }}>
                         Hiển thị {filtered.length} / {users.length} nhân viên
                     </div>
                 )}

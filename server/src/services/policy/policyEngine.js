@@ -6,7 +6,9 @@
  * Output: { status, checks, details, message }
  */
 
-import { POLICY_LIMITS } from './policyConfig.js';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 // Pattern MST Việt Nam: 10 số hoặc 13 số (10 + 3)
 const TAX_ID_PATTERN = /^\d{10}(\d{3})?$/;
@@ -19,22 +21,32 @@ const TAX_ID_PATTERN = /^\d{10}(\d{3})?$/;
  * @param {number} params.approvedBudget - Ngân sách được duyệt cho chuyến này
  * @returns {{ status: string, checks: object, details: object, message: string }}
  */
-export function evaluatePolicy({ ocrData, employeeRole = 'EMPLOYEE', approvedBudget }) {
+export async function evaluatePolicy({ ocrData, employeeRole = 'EMPLOYEE', approvedBudget }) {
     const checks = {
         budget_ok: true,
         policy_ok: true,
         tax_id_ok: true,
     };
 
-    const limits = POLICY_LIMITS[employeeRole];
-    if (!limits) {
+    const dbLimit = await prisma.policyLimit.findUnique({
+        where: { role: employeeRole }
+    });
+
+    if (!dbLimit) {
         return {
             status: 'INVALID_DATA',
             checks,
             details: { employee_role: employeeRole },
-            message: `❌ Cấp bậc "${employeeRole}" không hợp lệ`,
+            message: `❌ Không tìm thấy hạn mức cho role "${employeeRole}"`,
         };
     }
+
+    const limits = {
+        label: employeeRole === 'ADMIN' ? 'Giám đốc' : employeeRole === 'MANAGER' ? 'Trưởng phòng' : 'Nhân viên',
+        daily: dbLimit.dailyLimit,
+        perInvoice: dbLimit.perInvoiceLimit,
+        perTrip: dbLimit.totalPerTripLimit,
+    };
 
     const grandTotal = ocrData.grand_total ?? ocrData.total ?? null;
 
@@ -57,13 +69,17 @@ export function evaluatePolicy({ ocrData, employeeRole = 'EMPLOYEE', approvedBud
         }
     }
 
-    // ② Policy check: grand_total ≤ hạn mức ăn uống / ngày
-    const dailyLimit = limits.meal_per_day;
-    if (grandTotal > dailyLimit) {
+    // ② Per-invoice limit check
+    if (limits.perInvoice && grandTotal > limits.perInvoice) {
         checks.policy_ok = false;
     }
 
-    // ③ Tax ID check
+    // ③ Daily limit check (secondary)
+    if (limits.daily && grandTotal > limits.daily) {
+        checks.policy_ok = false;
+    }
+
+    // ④ Tax ID check
     const taxId = ocrData.tax_id;
     if (taxId) {
         const cleanTaxId = String(taxId).replace(/-/g, '');
@@ -82,14 +98,21 @@ export function evaluatePolicy({ ocrData, employeeRole = 'EMPLOYEE', approvedBud
     } else if (!checks.budget_ok) {
         const overAmount = grandTotal - approvedBudget;
         status = 'OVER_BUDGET';
-        message = `⚠️ Vượt ngân sách: ${formatVND(grandTotal)} > ${formatVND(approvedBudget)} (vượt ${formatVND(overAmount)})`;
+        message = `⚠️ Vượt ngân sách chuyến đi: ${formatVND(grandTotal)} > ${formatVND(approvedBudget)} (vượt ${formatVND(overAmount)})`;
     } else if (!checks.policy_ok) {
-        const overAmount = grandTotal - dailyLimit;
-        status = 'OVER_BUDGET';
-        message = `⚠️ Vượt hạn mức ${limits.label}: ${formatVND(grandTotal)} > ${formatVND(dailyLimit)}/ngày (vượt ${formatVND(overAmount)})`;
+        // Determine which limit was violated for the message
+        if (limits.perInvoice && grandTotal > limits.perInvoice) {
+            const overAmount = grandTotal - limits.perInvoice;
+            status = 'OVER_BUDGET';
+            message = `⚠️ Vượt hạn mức/hóa đơn ${limits.label}: ${formatVND(grandTotal)} > ${formatVND(limits.perInvoice)} (vượt ${formatVND(overAmount)})`;
+        } else {
+            const overAmount = grandTotal - limits.daily;
+            status = 'OVER_BUDGET';
+            message = `⚠️ Vượt hạn mức/ngày ${limits.label}: ${formatVND(grandTotal)} > ${formatVND(limits.daily)} (vượt ${formatVND(overAmount)})`;
+        }
     } else {
         status = 'VALID';
-        message = '✅ Hợp lệ - trong ngân sách được duyệt';
+        message = '✅ Hợp lệ - trong hạn mức được duyệt';
     }
 
     return {
@@ -100,7 +123,8 @@ export function evaluatePolicy({ ocrData, employeeRole = 'EMPLOYEE', approvedBud
             role_label: limits.label,
             approved_budget: approvedBudget ?? null,
             actual_amount: grandTotal,
-            daily_limit: dailyLimit,
+            daily_limit: limits.daily,
+            per_invoice_limit: limits.perInvoice,
             difference: approvedBudget != null ? approvedBudget - grandTotal : null,
         },
         message,

@@ -6,6 +6,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { expenseAPI } from '../../api/client.js';
 import { FileText, Eye, Search, AlertCircle, Trash2 } from 'lucide-react';
 import ExpenseDetailModal from '../../components/ExpenseDetailModal/ExpenseDetailModal.jsx';
+import Pagination, { usePagination } from '../../components/Pagination/Pagination.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
 
 const STATUS_MAP = {
@@ -24,6 +25,7 @@ export default function ExpensesPage() {
     const [appealModal, setAppealModal] = useState(null); // { id }
     const [appealText, setAppealText] = useState('');
     const [appealLoading, setAppealLoading] = useState(false);
+    const [page, setPage] = useState(1);
     const toast = useToast();
 
     const fetchExpenses = () => {
@@ -78,6 +80,12 @@ export default function ExpensesPage() {
         }
         return result;
     }, [expenses, search, statusFilter]);
+
+    // Reset page when filters change
+    useEffect(() => { setPage(1); }, [search, statusFilter]);
+
+    const { totalPages, getPage } = usePagination(filtered, 10);
+    const paginatedExpenses = getPage(page);
 
     if (loading) return <div className="loading-center"><div className="spinner" /></div>;
 
@@ -136,7 +144,7 @@ export default function ExpensesPage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {filtered.map((exp) => {
+                            {paginatedExpenses.map((exp) => {
                                 const status = STATUS_MAP[exp.status] || STATUS_MAP.PENDING;
                                 return (
                                     <tr key={exp.id} style={{ cursor: 'pointer' }} onClick={() => setSelectedId(exp.id)}>
@@ -188,6 +196,7 @@ export default function ExpensesPage() {
                             })}
                         </tbody>
                     </table>
+                    <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
                 </div>
             )}
 

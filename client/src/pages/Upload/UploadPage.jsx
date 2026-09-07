@@ -327,7 +327,10 @@ export default function UploadPage() {
                                     <div className="result-blockchain__details">
                                         <div className="result-blockchain__row">
                                             <span className="result-blockchain__label">TX Hash</span>
-                                            <span className="result-blockchain__hash">{result.blockchain.txHash}</span>
+                                            <a href={`https://sepolia.etherscan.io/tx/${result.blockchain.txHash}`} target="_blank" rel="noopener noreferrer"
+                                                className="result-blockchain__hash" style={{ color: '#2b9e9e', textDecoration: 'none' }}>
+                                                {result.blockchain.txHash} ↗
+                                            </a>
                                         </div>
                                         <div className="result-blockchain__row">
                                             <span className="result-blockchain__label">Expense ID</span>

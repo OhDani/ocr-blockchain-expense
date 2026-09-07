@@ -38,10 +38,10 @@ FlexiTrip giải quyết bài toán quản lý chi phí công tác doanh nghiệ
                                 │
                     ┌───────────┼───────────┐
                     ▼           ▼           ▼
-             ┌───────────┐ ┌────────┐ ┌──────────┐
-             │ Gemini AI │ │ Policy │ │ Hardhat  │
-             │   OCR     │ │ Engine │ │ Ethereum │
-             └───────────┘ └────────┘ └──────────┘
+             ┌───────────┐ ┌────────┐ ┌──────────────┐
+             │ Gemini AI │ │ Policy │ │   Ethereum   │
+             │   OCR     │ │ Engine │ │   Sepolia    │
+             └───────────┘ └────────┘ └──────────────┘
 ```
 
 ## Tech Stack
@@ -52,7 +52,7 @@ FlexiTrip giải quyết bài toán quản lý chi phí công tác doanh nghiệ
 | **Backend** | Express 5, Prisma ORM, JWT Auth, Multer |
 | **Database** | PostgreSQL (Supabase) |
 | **AI OCR** | Google Gemini Vision API (gemini-2.0-flash) |
-| **Blockchain** | Solidity, Hardhat, Ethers.js v6 |
+| **Blockchain** | Solidity, Ethers.js v6, Sepolia Testnet |
 | **Design** | Glassmorphism, Inter font, Responsive |
 
 ## Cài Đặt
@@ -63,6 +63,7 @@ FlexiTrip giải quyết bài toán quản lý chi phí công tác doanh nghiệ
 - npm ≥ 9
 - PostgreSQL (hoặc Supabase account)
 - Gemini API Key ([Google AI Studio](https://aistudio.google.com/))
+- Ví Ethereum có SepoliaETH (xem [Lấy SepoliaETH](#lấy-sepoliaETH))
 
 ### 1. Clone & cài dependencies
 
@@ -76,6 +77,7 @@ npm install
 
 ```bash
 cp server/.env.example server/.env
+cp contracts/.env.example contracts/.env
 ```
 
 Sửa `server/.env`:
@@ -90,9 +92,15 @@ JWT_SECRET="your-secret-key"
 # Gemini AI OCR
 GEMINI_API_KEY="your_gemini_api_key"
 
-# Blockchain
-ADMIN_PRIVATE_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-BLOCKCHAIN_RPC_URL="http://127.0.0.1:8545"
+# Blockchain (Sepolia Testnet)
+ADMIN_PRIVATE_KEY="your_private_key"
+BLOCKCHAIN_RPC_URL="https://ethereum-sepolia-rpc.publicnode.com"
+```
+
+Sửa `contracts/.env`:
+```env
+SEPOLIA_URL="https://ethereum-sepolia-rpc.publicnode.com"
+PRIVATE_KEY="your_private_key_here"
 ```
 
 ### 3. Khởi tạo database
@@ -103,35 +111,49 @@ npx prisma db push
 npx prisma db seed
 ```
 
-## Chạy Ứng Dụng
-
-Cần **3 terminal** chạy song song:
+### 4. Deploy Smart Contracts lên Sepolia
 
 ```bash
-# Terminal 1 — Blockchain (Hardhat local node)
-cd contracts
-npx hardhat node
+npm run contracts:deploy:sepolia
+```
 
-# Terminal 2 — Deploy contracts + Backend
-cd contracts
-npx hardhat run scripts/deploy.js --network localhost
-cd ../server
+Script sẽ tự động cập nhật `server/.env` với địa chỉ contract mới.
+
+### Lấy SepoliaETH
+
+Smart contract deploy lên Sepolia cần SepoliaETH (gas fee). Lấy miễn phí tại:
+
+- [Google Cloud Sepolia Faucet](https://cloud.google.com/application/web3/faucet/ethereum/sepolia)
+- [Alchemy Sepolia Faucet](https://sepoliafaucet.com/)
+- [Infura Sepolia Faucet](https://www.infura.io/faucet/sepolia)
+
+Cần khoảng **0.05 SepoliaETH** để deploy + chạy vài giao dịch.
+
+## Chạy Ứng Dụng
+
+Cần **2 terminal** chạy song song:
+
+```bash
+# Terminal 1 — Backend server
+cd server
 npm run dev
 
-# Terminal 3 — Frontend
+# Terminal 2 — Frontend
 cd client
 npm run dev
 ```
 
 Truy cập: **http://localhost:5173**
 
+> **Lưu ý:** Blockchain kết nối trực tiếp đến Sepolia Testnet qua RPC, không cần chạy node riêng.
+
 ## Tài Khoản Demo
 
 | Role | Email | Mật khẩu | Hạn mức/ngày |
 |---|---|---|---|
-| Admin | admin@company.vn | 123456 | 2,000,000đ |
-| Nhân viên | nguyenvana@company.vn | 123456 | 500,000đ |
-| Trưởng phòng | tranthib@company.vn | 123456 | 1,000,000đ |
+| Admin | admin@company.vn | admin123 | 2,000,000đ |
+| Nhân viên | nguyenvana@company.vn | employee123 | 500,000đ |
+| Trưởng phòng | tranthib@company.vn | employee123 | 1,000,000đ |
 
 ## Luồng Xử Lý Chính
 
@@ -151,8 +173,9 @@ Truy cập: **http://localhost:5173**
 💾 Lưu vào PostgreSQL
    │
    ▼
-⛓️ Ghi lên Blockchain (submitExpense)
+⛓️ Ghi lên Blockchain Sepolia (submitExpense)
    │  → Trả về txHash + onChainExpenseId
+   │  → Verify trên Etherscan Sepolia
    │
    ▼
 ⏳ Chờ Admin duyệt
@@ -185,7 +208,7 @@ ocr-blockchain-expense/
 └── contracts/                 # Solidity + Hardhat
     ├── contracts/             # MockVND.sol, ExpenseManager.sol
     ├── test/                  # 30 test cases
-    └── scripts/               # deploy.js
+    └── scripts/               # deploy.js, deploy-sepolia.js
 ```
 
 ## Smart Contracts
@@ -200,10 +223,14 @@ ocr-blockchain-expense/
 - `_reimburse()` — Tự động chuyển vVND từ quỹ công ty → ví nhân viên
 - Policy on-chain: hạn mức theo cấp bậc (EMPLOYEE / MANAGER / ADMIN)
 
-### Test
+### Deploy & Test
 ```bash
+# Test
 cd contracts
-npx hardhat test --network localhost   # 30 passing ✅
+npx hardhat test   # 30 passing ✅
+
+# Deploy lên Sepolia
+npm run contracts:deploy:sepolia
 ```
 
 ## API Endpoints
@@ -219,8 +246,8 @@ npx hardhat test --network localhost   # 30 passing ✅
 |---|---|---|
 | POST | `/api/expenses/upload` | Upload hóa đơn + AI OCR |
 | GET | `/api/expenses` | Danh sách chi phí |
-| PUT | `/api/expenses/:id/approve` | Duyệt chi phí |
-| PUT | `/api/expenses/:id/reject` | Từ chối chi phí |
+| PATCH | `/api/expenses/:id/approve` | Duyệt chi phí |
+| PATCH | `/api/expenses/:id/reject` | Từ chối chi phí |
 
 ### Trips
 | Method | Path | Mô tả |
@@ -234,6 +261,7 @@ npx hardhat test --network localhost   # 30 passing ✅
 | GET | `/api/admin/dashboard` | Thống kê tổng quan |
 | GET | `/api/admin/expenses` | Tất cả chi phí (phân trang) |
 | GET | `/api/admin/departments` | Chi phí theo phòng ban |
+| GET | `/api/admin/blockchain` | Blockchain Explorer |
 
 ---
 

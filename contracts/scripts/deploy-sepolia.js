@@ -2,12 +2,32 @@ const hre = require("hardhat");
 const fs = require("fs");
 const path = require("path");
 
+/**
+ * Deploy to Sepolia Testnet
+ * - Chỉ dùng 1 signer (deployer) vì trên testnet chỉ có 1 private key
+ * - Đăng ký employee bằng wallet address từ DB (sẽ cập nhật sau nếu cần)
+ */
 async function main() {
-    const [deployer] = await hre.ethers.getSigners();
+    const signers = await hre.ethers.getSigners();
+    if (signers.length === 0) {
+        console.error("❌ Không tìm thấy signer! Hãy kiểm tra PRIVATE_KEY trong contracts/.env");
+        console.error("   Mở MetaMask → Account Details → Show Private Key → Copy vào .env");
+        process.exit(1);
+    }
+    const [deployer] = signers;
+    const balance = await hre.ethers.provider.getBalance(deployer.address);
+
     console.log("═══════════════════════════════════════════════════");
-    console.log("  📋 Deploying Smart Contracts");
+    console.log("  📋 Deploying Smart Contracts to SEPOLIA");
     console.log("  👤 Deployer:", deployer.address);
+    console.log("  💰 Balance:", hre.ethers.formatEther(balance), "ETH");
+    console.log("  🌐 Network:", hre.network.name);
     console.log("═══════════════════════════════════════════════════\n");
+
+    if (balance === 0n) {
+        console.error("❌ Không đủ ETH để deploy! Cần ít nhất 0.01 SepoliaETH");
+        process.exit(1);
+    }
 
     // 1. Deploy MockVND
     console.log("① Deploying MockVND (vVND stablecoin)...");
@@ -28,38 +48,37 @@ async function main() {
     // 3. Setup: Mint vVND → Fund pool
     const INITIAL_POOL = 10_000_000;
     console.log(`\n③ Minting ${INITIAL_POOL.toLocaleString()} vVND → Admin...`);
-    await mockVND.mint(deployer.address, INITIAL_POOL);
+    const tx1 = await mockVND.mint(deployer.address, INITIAL_POOL);
+    await tx1.wait();
 
     console.log("   Approving ExpenseManager to spend vVND...");
-    await mockVND.approve(emAddress, INITIAL_POOL);
+    const tx2 = await mockVND.approve(emAddress, INITIAL_POOL);
+    await tx2.wait();
 
     console.log("   Funding company pool...");
-    await expenseManager.fundCompanyPool(INITIAL_POOL);
+    const tx3 = await expenseManager.fundCompanyPool(INITIAL_POOL);
+    await tx3.wait();
     console.log("   ✅ Company pool funded:", INITIAL_POOL.toLocaleString(), "vVND");
 
-    // 4. Register employees (khớp với walletAddress trong seed.js)
-    console.log("\n④ Registering employees...");
-    const signers = await hre.ethers.getSigners();
-    // Hardhat #0 = Admin (Director)
-    await expenseManager.registerEmployee(signers[0].address, 2);
-    console.log("   ✅ Admin (Director):", signers[0].address);
-    // Hardhat #1 = Nguyễn Văn A (Staff)
-    await expenseManager.registerEmployee(signers[1].address, 0);
-    console.log("   ✅ Employee (Staff):", signers[1].address);
-    // Hardhat #2 = Trần Thị B (Manager)
-    await expenseManager.registerEmployee(signers[2].address, 1);
-    console.log("   ✅ Manager:", signers[2].address);
+    // 4. Register deployer as Director + set policies
+    console.log("\n④ Registering deployer as Director...");
+    const tx4 = await expenseManager.registerEmployee(deployer.address, 2);
+    await tx4.wait();
+    console.log("   ✅ Deployer registered as Director:", deployer.address);
 
     // 5. Set policies
     console.log("\n⑤ Setting policies...");
-    await expenseManager.setPolicy(0, 500_000, 1_000_000);   // Staff
-    await expenseManager.setPolicy(1, 700_000, 2_000_000);   // Manager
-    await expenseManager.setPolicy(2, 1_000_000, 5_000_000); // Director
-    console.log("   ✅ Staff:    500k/ngày, 1tr/hóa đơn");
-    console.log("   ✅ Manager:  700k/ngày, 2tr/hóa đơn");
-    console.log("   ✅ Director: 1tr/ngày,  5tr/hóa đơn");
+    const tx5a = await expenseManager.setPolicy(0, 5_000_000, 2_000_000);
+    await tx5a.wait();
+    const tx5b = await expenseManager.setPolicy(1, 10_000_000, 5_000_000);
+    await tx5b.wait();
+    const tx5c = await expenseManager.setPolicy(2, 20_000_000, 10_000_000);
+    await tx5c.wait();
+    console.log("   ✅ Staff:    5tr/ngày, 2tr/hóa đơn");
+    console.log("   ✅ Manager:  10tr/ngày, 5tr/hóa đơn");
+    console.log("   ✅ Director: 20tr/ngày, 10tr/hóa đơn");
 
-    // 5. Lưu địa chỉ vào file để backend đọc
+    // 6. Lưu địa chỉ
     const addresses = {
         MockVND: vndAddress,
         ExpenseManager: emAddress,
@@ -83,16 +102,31 @@ async function main() {
             /EXPENSE_MANAGER_ADDRESS=.*/,
             `EXPENSE_MANAGER_ADDRESS=${emAddress}`
         );
+        // Cập nhật RPC URL sang Sepolia
+        envContent = envContent.replace(
+            /BLOCKCHAIN_RPC_URL=.*/,
+            `BLOCKCHAIN_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com`
+        );
+        // Cập nhật private key (dùng key từ env thay vì hardcode)
+        if (process.env.PRIVATE_KEY) {
+            envContent = envContent.replace(
+                /ADMIN_PRIVATE_KEY=.*/,
+                `ADMIN_PRIVATE_KEY="0x${process.env.PRIVATE_KEY.replace(/^0x/, '')}"`
+            );
+        }
         fs.writeFileSync(envPath, envContent);
-        console.log("   ✅ server/.env auto-updated with new addresses");
+        console.log("\n   ✅ server/.env auto-updated with Sepolia config");
     }
 
     console.log("\n═══════════════════════════════════════════════════");
-    console.log("  🎉 Deployment complete!");
+    console.log("  🎉 SEPOLIA Deployment complete!");
     console.log("═══════════════════════════════════════════════════");
     console.log("\n  Addresses:");
     console.log("  MockVND:        ", vndAddress);
     console.log("  ExpenseManager: ", emAddress);
+    console.log(`\n  🔗 Verify on Etherscan:`);
+    console.log(`  MockVND:         https://sepolia.etherscan.io/address/${vndAddress}`);
+    console.log(`  ExpenseManager:  https://sepolia.etherscan.io/address/${emAddress}`);
     console.log(`\n  📄 Addresses saved to: deployed-addresses.json`);
     console.log(`  📄 server/.env updated automatically`);
 }
