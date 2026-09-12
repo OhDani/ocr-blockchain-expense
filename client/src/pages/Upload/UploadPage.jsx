@@ -8,6 +8,7 @@ import {
     Upload, FileImage, RefreshCw, Rocket, CheckCircle,
     ClipboardCheck, Bot, Link2, AlertTriangle, XCircle,
     Store, Hash, Calendar, Receipt, CreditCard, FileText,
+    PenLine,
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext.jsx';
 import './UploadPage.css';
@@ -24,6 +25,13 @@ export default function UploadPage() {
     const [userNote, setUserNote] = useState('');
     const inputRef = useRef(null);
     const toast = useToast();
+    const [activeTab, setActiveTab] = useState('upload'); // 'upload' | 'manual'
+    const [manualForm, setManualForm] = useState({
+        tripId: '', amount: '', invoiceType: 'food_drink',
+        storeName: '', taxId: '', invoiceDate: '', userNote: '',
+    });
+    const [manualSubmitting, setManualSubmitting] = useState(false);
+    const [manualResult, setManualResult] = useState(null);
 
     useEffect(() => {
         tripAPI.list().then((res) => setTrips(res.data)).catch(() => { });
@@ -92,12 +100,141 @@ export default function UploadPage() {
     const ocrData = result?.ocr?.data || {};
     const policyStatus = result?.policy?.status?.toLowerCase();
 
+    const INVOICE_TYPES = [
+        { value: 'food_drink', label: 'Ăn uống' },
+        { value: 'transport', label: 'Di chuyển' },
+        { value: 'hotel', label: 'Khách sạn' },
+        { value: 'office_supplies', label: 'Văn phòng phẩm' },
+        { value: 'fuel', label: 'Xăng dầu' },
+        { value: 'telecom', label: 'Viễn thông' },
+        { value: 'other', label: 'Khác' },
+    ];
+
+    const handleManualSubmit = async (e) => {
+        e.preventDefault();
+        setManualSubmitting(true);
+        setError('');
+        try {
+            const res = await expenseAPI.manual(manualForm);
+            setManualResult(res.data);
+            toast('Hóa đơn đã được lưu thành công!', 'success');
+        } catch (err) {
+            setError(err.message || 'Lỗi tạo hóa đơn');
+            toast(err.message || 'Lỗi', 'error');
+        } finally {
+            setManualSubmitting(false);
+        }
+    };
+
+    const resetManual = () => {
+        setManualForm({ tripId: '', amount: '', invoiceType: 'food_drink', storeName: '', taxId: '', invoiceDate: '', userNote: '' });
+        setManualResult(null);
+        setError('');
+    };
+
     return (
         <div className="upload-page">
             <div className="page-header">
                 <h1>Upload hóa đơn</h1>
             </div>
 
+            {/* Tab switcher */}
+            <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--color-border)', width: 'fit-content' }}>
+                <button onClick={() => setActiveTab('upload')}
+                    style={{
+                        padding: '8px 20px', border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                        background: activeTab === 'upload' ? 'var(--color-primary)' : 'var(--color-bg)',
+                        color: activeTab === 'upload' ? 'white' : 'var(--color-text-secondary)',
+                        display: 'flex', alignItems: 'center', gap: 6,
+                    }}>
+                    <Upload size={14} /> Upload ảnh
+                </button>
+                <button onClick={() => setActiveTab('manual')}
+                    style={{
+                        padding: '8px 20px', border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                        background: activeTab === 'manual' ? 'var(--color-primary)' : 'var(--color-bg)',
+                        color: activeTab === 'manual' ? 'white' : 'var(--color-text-secondary)',
+                        display: 'flex', alignItems: 'center', gap: 6,
+                    }}>
+                    <PenLine size={14} /> Nhập tay
+                </button>
+            </div>
+
+            {activeTab === 'manual' ? (
+                /* ══════ FORM NHẬP TAY ══════ */
+                <div className="card" style={{ maxWidth: 600 }}>
+                    {manualResult ? (
+                        <div style={{ textAlign: 'center', padding: 24 }}>
+                            <CheckCircle size={48} color="var(--color-success)" style={{ marginBottom: 16 }} />
+                            <h3 style={{ marginBottom: 8 }}>Hóa đơn đã được lưu!</h3>
+                            <p style={{ color: 'var(--color-text-muted)', fontSize: 13, marginBottom: 16 }}>
+                                Trạng thái: <span className={`badge ${manualResult.expense?.status === 'PENDING' ? 'badge-warning' : 'badge-success'}`}>
+                                    {manualResult.expense?.status === 'PENDING' ? 'Chờ duyệt' : 'Hoàn ứng'}
+                                </span>
+                            </p>
+                            <button className="btn btn-primary" onClick={resetManual}>Nhập hóa đơn khác</button>
+                        </div>
+                    ) : (
+                        <form onSubmit={handleManualSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                            <h3 style={{ margin: 0, fontSize: 16 }}><PenLine size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} />Nhập thông tin hóa đơn</h3>
+                            {error && <div style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>{error}</div>}
+                            <div className="form-group">
+                                <label>Chuyến công tác *</label>
+                                <select className="form-input" required value={manualForm.tripId} onChange={(e) => setManualForm({ ...manualForm, tripId: e.target.value })}>
+                                    <option value="">-- Chọn chuyến --</option>
+                                    {trips.map(t => <option key={t.id} value={t.id}>{t.destination} ({new Date(t.startDate).toLocaleDateString('vi-VN')})</option>)}
+                                </select>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                                <div className="form-group">
+                                    <label>Loại hóa đơn *</label>
+                                    <select className="form-input" value={manualForm.invoiceType} onChange={(e) => setManualForm({ ...manualForm, invoiceType: e.target.value })}>
+                                        {INVOICE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                                    </select>
+                                </div>
+                                <div className="form-group">
+                                    <label>Số tiền (VNĐ) *</label>
+                                    <input className="form-input" required placeholder="150.000"
+                                        value={manualForm.amount ? Number(manualForm.amount).toLocaleString('vi-VN') : ''}
+                                        onChange={(e) => setManualForm({ ...manualForm, amount: e.target.value.replace(/\D/g, '') })} />
+                                </div>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                                <div className="form-group">
+                                    <label>Tên cửa hàng</label>
+                                    <input className="form-input" placeholder="VD: Grab, Highlands Coffee" value={manualForm.storeName}
+                                        onChange={(e) => setManualForm({ ...manualForm, storeName: e.target.value })} />
+                                </div>
+                                <div className="form-group">
+                                    <label>Mã số thuế</label>
+                                    <input className="form-input" placeholder="VD: 0312345678" value={manualForm.taxId}
+                                        onChange={(e) => setManualForm({ ...manualForm, taxId: e.target.value })} />
+                                </div>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                                <div className="form-group">
+                                    <label>Ngày hóa đơn</label>
+                                    <input className="form-input" type="date" value={manualForm.invoiceDate}
+                                        onChange={(e) => setManualForm({ ...manualForm, invoiceDate: e.target.value })} />
+                                </div>
+                                <div className="form-group">
+                                    <label>Ghi chú</label>
+                                    <input className="form-input" placeholder="Thông tin thêm" value={manualForm.userNote}
+                                        onChange={(e) => setManualForm({ ...manualForm, userNote: e.target.value })} />
+                                </div>
+                            </div>
+                            <button type="submit" className="btn btn-primary" disabled={manualSubmitting} style={{ marginTop: 8 }}>
+                                {manualSubmitting ? (
+                                    <><span className="spinner" style={{ width: 16, height: 16 }} /> Đang xử lý...</>
+                                ) : (
+                                    <><Rocket size={16} /> Lưu hóa đơn</>
+                                )}
+                            </button>
+                        </form>
+                    )}
+                </div>
+            ) : (
+            /* ══════ UPLOAD ẢNH (giữ nguyên) ══════ */
             <div className="upload-grid">
                 {/* Cột trái: Upload + Preview */}
                 <div className="upload-left">
@@ -352,6 +489,7 @@ export default function UploadPage() {
                     )}
                 </div>
             </div>
+            )}
         </div>
     );
 }

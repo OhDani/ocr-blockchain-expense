@@ -4,7 +4,8 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { adminAPI } from '../../api/client.js';
-import { Users, Shield, UserCheck, Search, Plus, X, Save } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext.jsx';
+import { Users, Shield, UserCheck, Search, Plus, X, Save, Trash2, Link2, Loader2, CheckCircle2 } from 'lucide-react';
 import Pagination, { usePagination } from '../../components/Pagination/Pagination.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
 
@@ -15,6 +16,8 @@ const ROLE_MAP = {
 };
 
 export default function AdminUsers() {
+    const { user: currentUser } = useAuth();
+    const isAdmin = currentUser?.role === 'ADMIN';
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filterRole, setFilterRole] = useState('');
@@ -26,13 +29,21 @@ export default function AdminUsers() {
     // New User State
     const [showForm, setShowForm] = useState(false);
     const [creating, setCreating] = useState(false);
-    const [form, setForm] = useState({ name: '', email: '', password: '', role: 'EMPLOYEE', departmentId: '' });
+    const [form, setForm] = useState({ name: '', email: '', password: '', role: 'EMPLOYEE', departmentId: '', walletAddress: '' });
     const [dbDepartments, setDbDepartments] = useState([]);
+
+    // Blockchain registration state
+    const [registeringBC, setRegisteringBC] = useState(null); // userId đang đăng ký
+    const [registeredBC, setRegisteredBC] = useState(new Set()); // Set userId đã đăng ký xong
 
     const fetchUsers = () => {
         setLoading(true);
         adminAPI.users()
-            .then((res) => setUsers(res.data))
+            .then((res) => {
+                setUsers(res.data);
+                const registeredSet = new Set(res.data.filter(u => u.isRegisteredOnChain).map(u => u.id));
+                setRegisteredBC(registeredSet);
+            })
             .catch(console.error)
             .finally(() => setLoading(false));
     };
@@ -79,10 +90,16 @@ export default function AdminUsers() {
         e.preventDefault();
         setCreating(true);
         try {
-            await adminAPI.createUser(form);
+            const payload = { ...form };
+            // Manager: tự gán phòng ban + role EMPLOYEE
+            if (!isAdmin) {
+                payload.departmentId = currentUser?.departmentId || '';
+                payload.role = 'EMPLOYEE';
+            }
+            await adminAPI.createUser(payload);
             toast('Tạo nhân viên thành công!', 'success');
             setShowForm(false);
-            setForm({ name: '', email: '', password: '', role: 'EMPLOYEE', departmentId: '' });
+            setForm({ name: '', email: '', password: '', role: 'EMPLOYEE', departmentId: '', walletAddress: '' });
             fetchUsers();
         } catch (err) {
             toast(err.message || 'Lỗi tạo nhân viên', 'error');
@@ -96,6 +113,18 @@ export default function AdminUsers() {
     const departmentNames = [...new Set(users.map(u => u.department?.name).filter(Boolean))].sort();
 
     if (loading) return <div className="loading-center"><div className="spinner" /></div>;
+
+    const handleDeleteUser = async (user) => {
+        const confirm = window.confirm(`Bạn chắc chắn muốn xóa nhân viên "${user.name}"?\n\nTất cả dữ liệu (hóa đơn, chuyến công tác, ...) của nhân viên này sẽ bị xóa vĩnh viễn.`);
+        if (!confirm) return;
+        try {
+            await adminAPI.deleteUser(user.id);
+            toast(`Đã xóa nhân viên ${user.name}`, 'success');
+            fetchUsers();
+        } catch (err) {
+            toast(err.message || 'Lỗi xóa nhân viên', 'error');
+        }
+    };
 
     return (
         <div>
@@ -136,20 +165,28 @@ export default function AdminUsers() {
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                                     <div className="form-group">
                                         <label>Vai trò *</label>
-                                        <select className="form-input" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
-                                            <option value="EMPLOYEE">Nhân viên</option>
-                                            <option value="MANAGER">Trưởng phòng</option>
-                                            <option value="ADMIN">Quản trị viên</option>
-                                        </select>
+                                        {isAdmin ? (
+                                            <select className="form-input" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
+                                                <option value="EMPLOYEE">Nhân viên</option>
+                                                <option value="MANAGER">Trưởng phòng</option>
+                                                <option value="ADMIN">Quản trị viên</option>
+                                            </select>
+                                        ) : (
+                                            <input className="form-input" value="Nhân viên" disabled />
+                                        )}
                                     </div>
                                     <div className="form-group">
                                         <label>Phòng ban</label>
-                                        <select className="form-input" value={form.departmentId} onChange={(e) => setForm({ ...form, departmentId: e.target.value })}>
-                                            <option value="">-- Chưa phân phòng --</option>
-                                            {dbDepartments.map(d => (
-                                                <option key={d.id} value={d.id}>{d.name}</option>
-                                            ))}
-                                        </select>
+                                        {isAdmin ? (
+                                            <select className="form-input" value={form.departmentId} onChange={(e) => setForm({ ...form, departmentId: e.target.value })}>
+                                                <option value="">-- Chưa phân phòng --</option>
+                                                {dbDepartments.map(d => (
+                                                    <option key={d.id} value={d.id}>{d.name}</option>
+                                                ))}
+                                            </select>
+                                        ) : (
+                                            <input className="form-input" value={dbDepartments.find(d => d.id === currentUser?.departmentId)?.name || 'Phòng ban của bạn'} disabled />
+                                        )}
                                     </div>
                                 </div>
                                 <button type="submit" className="btn btn-primary" disabled={creating} style={{ marginTop: 8 }}>
@@ -242,12 +279,13 @@ export default function AdminUsers() {
                                 <th style={thStyle}>Phòng ban</th>
                                 <th style={{ ...thStyle, textAlign: 'center' }}>Hóa đơn</th>
                                 <th style={{ ...thStyle, textAlign: 'center' }}>Chuyến CT</th>
+                                <th style={{ ...thStyle, textAlign: 'center' }}>Hành động</th>
                             </tr>
                         </thead>
                         <tbody>
                             {filtered.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} style={{ textAlign: 'center', padding: 32, color: 'var(--color-text-muted)' }}>
+                                    <td colSpan={7} style={{ textAlign: 'center', padding: 32, color: 'var(--color-text-muted)' }}>
                                         Không tìm thấy nhân viên phù hợp
                                     </td>
                                 </tr>
@@ -287,6 +325,64 @@ export default function AdminUsers() {
                                         </td>
                                         <td style={{ ...tdStyle, textAlign: 'center' }}>{u._count?.expenses || 0}</td>
                                         <td style={{ ...tdStyle, textAlign: 'center' }}>{u._count?.trips || 0}</td>
+                                        <td style={{ ...tdStyle, textAlign: 'center' }}>
+                                            <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                                                {u.walletAddress && u.role !== 'ADMIN' && !registeredBC.has(u.id) && (
+                                                    registeringBC === u.id ? (
+                                                        <span style={{
+                                                            fontSize: 11, color: '#8b5cf6', display: 'inline-flex',
+                                                            alignItems: 'center', gap: 4, padding: '5px 8px',
+                                                        }}>
+                                                            <Loader2 size={13} className="spin" /> Đang ký...
+                                                        </span>
+                                                    ) : (
+                                                        <button
+                                                            onClick={async (e) => {
+                                                                e.stopPropagation();
+                                                                setRegisteringBC(u.id);
+                                                                try {
+                                                                    const res = await adminAPI.registerBlockchain(u.id);
+                                                                    toast(res.message || 'Đăng ký blockchain thành công!', 'success');
+                                                                    setRegisteredBC(prev => new Set([...prev, u.id]));
+                                                                } catch (err) {
+                                                                    toast(err.message || 'Lỗi đăng ký blockchain', 'error');
+                                                                } finally {
+                                                                    setRegisteringBC(null);
+                                                                }
+                                                            }}
+                                                            title="Đăng ký trên Blockchain"
+                                                            style={{
+                                                                background: 'rgba(139,92,246,0.08)', color: '#8b5cf6',
+                                                                border: 'none', borderRadius: 6, padding: '5px 8px',
+                                                                cursor: 'pointer', fontSize: 12, display: 'inline-flex',
+                                                                alignItems: 'center', gap: 4,
+                                                            }}
+                                                        >
+                                                            <Link2 size={13} /> BC
+                                                        </button>
+                                                    )
+                                                )}
+                                                {u.walletAddress && registeredBC.has(u.id) && (
+                                                    <span style={{ fontSize: 11, color: '#10b981', display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 8px' }}>
+                                                        <CheckCircle2 size={13} /> Đã ký
+                                                    </span>
+                                                )}
+                                                {u.id !== currentUser?.id && (
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); handleDeleteUser(u); }}
+                                                        title="Xóa nhân viên"
+                                                        style={{
+                                                            background: 'rgba(239,68,68,0.08)', color: '#ef4444',
+                                                            border: 'none', borderRadius: 6, padding: '5px 8px',
+                                                            cursor: 'pointer', fontSize: 12, display: 'inline-flex',
+                                                            alignItems: 'center', gap: 4,
+                                                        }}
+                                                    >
+                                                        <Trash2 size={13} /> Xóa
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </td>
                                     </tr>
                                 );
                             })}

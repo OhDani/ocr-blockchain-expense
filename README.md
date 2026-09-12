@@ -147,13 +147,38 @@ Truy cập: **http://localhost:5173**
 
 > **Lưu ý:** Blockchain kết nối trực tiếp đến Sepolia Testnet qua RPC, không cần chạy node riêng.
 
+## Khởi Tạo Hệ Thống
+
+Lần đầu triển khai (DB trống), truy cập web sẽ tự động hiện **trang Setup**:
+
+1. Nhập tên công ty
+2. Tạo tài khoản Admin đầu tiên (tên, email, mật khẩu)
+3. Hệ thống khởi tạo → redirect sang Login
+4. Admin đăng nhập → tạo phòng ban, Manager, Employee
+
+> **Mô hình multi-company:** Mỗi công ty = 1 deployment riêng (database riêng). Khi bán cho công ty mới, deploy instance mới → họ tự setup Admin.
+
+## Phân Quyền
+
+| Chức năng | Admin | Manager | Employee |
+|---|:---:|:---:|:---:|
+| Bảng quản trị (thống kê) | ✅ | ❌ | ❌ |
+| Duyệt/Từ chối hóa đơn | ✅ | ❌ | ❌ |
+| Tạo phòng ban | ✅ | ❌ | ❌ |
+| Tạo tài khoản | ✅ | ✅ (phòng mình) | ❌ |
+| Xem chuyến công tác | Tất cả | Phòng ban | Bản thân |
+| Tạo chuyến công tác | ❌ | ✅ (cho NV phòng) | ✅ (bản thân) |
+| Báo cáo & Xuất PDF/Excel | ✅ | ❌ | ❌ |
+
 ## Tài Khoản Demo
 
-| Role | Email | Mật khẩu | Hạn mức/ngày |
-|---|---|---|---|
-| Admin | admin@company.vn | admin123 | 2,000,000đ |
-| Nhân viên | nguyenvana@company.vn | employee123 | 500,000đ |
-| Trưởng phòng | tranthib@company.vn | employee123 | 1,000,000đ |
+> **Lưu ý:** Nếu dùng seed data, các tài khoản mặc định là:
+
+| Role | Email | Mật khẩu |
+|---|---|---|
+| Admin | admin@company.vn | admin123 |
+| Nhân viên | nguyenvana@company.vn | employee123 |
+| Trưởng phòng | tranthib@company.vn | employee123 |
 
 ## Luồng Xử Lý Chính
 
@@ -238,6 +263,8 @@ npm run contracts:deploy:sepolia
 ### Auth
 | Method | Path | Mô tả |
 |---|---|---|
+| GET | `/api/auth/check-setup` | Kiểm tra cần setup không |
+| POST | `/api/auth/setup` | Khởi tạo Admin đầu tiên |
 | POST | `/api/auth/login` | Đăng nhập |
 | GET | `/api/auth/me` | Lấy thông tin user |
 
@@ -246,8 +273,8 @@ npm run contracts:deploy:sepolia
 |---|---|---|
 | POST | `/api/expenses/upload` | Upload hóa đơn + AI OCR |
 | GET | `/api/expenses` | Danh sách chi phí |
-| PATCH | `/api/expenses/:id/approve` | Duyệt chi phí |
-| PATCH | `/api/expenses/:id/reject` | Từ chối chi phí |
+| PATCH | `/api/expenses/:id/approve` | Admin duyệt chi phí |
+| PATCH | `/api/expenses/:id/reject` | Admin từ chối chi phí |
 
 ### Trips
 | Method | Path | Mô tả |
@@ -261,7 +288,6 @@ npm run contracts:deploy:sepolia
 | GET | `/api/admin/dashboard` | Thống kê tổng quan |
 | GET | `/api/admin/expenses` | Tất cả chi phí (phân trang) |
 | GET | `/api/admin/departments` | Chi phí theo phòng ban |
-| GET | `/api/admin/blockchain` | Blockchain Explorer |
 
 ---
 

@@ -2,17 +2,37 @@
  * LoginPage.jsx — Trang đăng nhập
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { LogIn, ShieldCheck, User, Briefcase } from 'lucide-react';
+import { LogIn } from 'lucide-react';
 import './LoginPage.css';
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 export default function LoginPage() {
     const { login } = useAuth();
+    const navigate = useNavigate();
+    const location = useLocation();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [checking, setChecking] = useState(true);
+    const setupSuccess = location.state?.setupSuccess;
+
+    // Kiểm tra hệ thống đã setup chưa
+    useEffect(() => {
+        fetch(`${API_BASE}/auth/check-setup`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.data?.needSetup) {
+                    navigate('/setup', { replace: true });
+                }
+            })
+            .catch(() => {})
+            .finally(() => setChecking(false));
+    }, [navigate]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -28,9 +48,21 @@ export default function LoginPage() {
         }
     };
 
+    if (checking) return null;
+
     return (
         <div className="login-page">
             <div className="login-card">
+                {/* Setup success message */}
+                {setupSuccess && (
+                    <div style={{
+                        background: 'rgba(43,158,158,0.1)', border: '1px solid rgba(43,158,158,0.2)',
+                        borderRadius: 10, padding: '10px 14px', marginBottom: 16,
+                        color: '#2b9e9e', fontSize: 13, textAlign: 'center',
+                    }}>
+                        ✅ Hệ thống đã khởi tạo thành công! Hãy đăng nhập bằng tài khoản Admin vừa tạo.
+                    </div>
+                )}
                 {/* Logo */}
                 <div className="login-logo">
                     <img src="/assets/logo.png" alt="FlexiTrip" className="login-logo__img" />
@@ -83,34 +115,6 @@ export default function LoginPage() {
                         )}
                     </button>
                 </form>
-
-                {/* Demo accounts */}
-                <div className="login-demo">
-                    <p className="login-demo__title">Tài khoản demo</p>
-                    <div className="login-demo__accounts">
-                        <button
-                            type="button"
-                            className="login-demo__btn"
-                            onClick={() => { setEmail('admin@company.vn'); setPassword('admin123'); }}
-                        >
-                            <ShieldCheck size={14} /> Admin
-                        </button>
-                        <button
-                            type="button"
-                            className="login-demo__btn"
-                            onClick={() => { setEmail('nguyenvana@company.vn'); setPassword('employee123'); }}
-                        >
-                            <User size={14} /> Nhân viên A
-                        </button>
-                        <button
-                            type="button"
-                            className="login-demo__btn"
-                            onClick={() => { setEmail('tranthib@company.vn'); setPassword('employee123'); }}
-                        >
-                            <Briefcase size={14} /> Trưởng phòng B
-                        </button>
-                    </div>
-                </div>
             </div>
         </div>
     );

@@ -201,9 +201,58 @@ export async function getVNDBalance(address) {
 }
 
 /**
+ * Đăng ký nhân viên trên Smart Contract.
+ * @param {string} walletAddress - Địa chỉ ví Ethereum của nhân viên
+ * @param {string} role - Vai trò trong DB: 'EMPLOYEE' | 'MANAGER'
+ * @returns {{ txHash: string, gasUsed: string }}
+ */
+export async function registerEmployeeOnChain(walletAddress, role) {
+    if (!expenseManagerContract) {
+        throw new Error('Blockchain chưa được khởi tạo');
+    }
+
+    // Map DB role → on-chain EmployeeTier enum
+    // Staff = 0, Manager = 1, Director = 2
+    const tierMap = { EMPLOYEE: 0, MANAGER: 1, ADMIN: 2 };
+    const tier = tierMap[role] ?? 0;
+
+    try {
+        const tx = await expenseManagerContract.registerEmployee(walletAddress, tier);
+        const receipt = await tx.wait();
+        console.log(`✅ Employee registered on-chain: ${walletAddress} (tier=${tier})`);
+        return {
+            txHash: receipt.hash,
+            gasUsed: receipt.gasUsed.toString(),
+        };
+    } catch (err) {
+        // Nếu đã đăng ký rồi thì bỏ qua
+        if (err.message?.includes('already registered')) {
+            console.log(`ℹ️ Employee already registered on-chain: ${walletAddress}`);
+            return { txHash: null, gasUsed: '0', alreadyRegistered: true };
+        }
+        throw new Error(translateBlockchainError(err));
+    }
+}
+
+/**
+ * Kiểm tra nhân viên đã đăng ký trên Smart Contract chưa.
+ * @param {string} walletAddress - Địa chỉ ví Ethereum
+ * @returns {Promise<boolean>}
+ */
+export async function checkEmployeeRegisteredOnChain(walletAddress) {
+    if (!expenseManagerContract || !walletAddress) return false;
+    try {
+        const employeeData = await expenseManagerContract.employees(walletAddress);
+        return employeeData.registered;
+    } catch (err) {
+        console.warn(`⚠️ Lỗi kiểm tra registered on-chain cho ${walletAddress}:`, err.message);
+        return false;
+    }
+}
+
+/**
  * Kiểm tra blockchain đã kết nối chưa.
  */
 export function isBlockchainReady() {
     return expenseManagerContract !== null;
 }
-

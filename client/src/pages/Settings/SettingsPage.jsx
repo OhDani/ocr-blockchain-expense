@@ -173,8 +173,17 @@ export default function SettingsPage() {
                                 </>
                             ) : (
                                 <>
-                                    <span>{user.department?.name || '—'}</span>
-                                    <button onClick={() => { setEditingDept(true); setSelectedDeptId(user.department?.id || ''); }} style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', padding: 4 }} title="Đổi phòng ban"><Edit2 size={14} /></button>
+                                    {user.department?.name ? (
+                                        <>
+                                            <span>{user.department.name}</span>
+                                            <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+                                                ({user.departmentSelfSelected ? 'Tự chọn' : 'Được phân bởi quản trị'})
+                                            </span>
+                                        </>
+                                    ) : (
+                                        <span style={{ color: 'var(--color-text-muted)' }}>Chưa phân phòng</span>
+                                    )}
+                                    <button onClick={() => { setEditingDept(true); setSelectedDeptId(user.department?.id || ''); }} style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', padding: 4 }} title="Chọn/Đổi phòng ban"><Edit2 size={14} /></button>
                                 </>
                             )}
                         </div>
@@ -197,11 +206,9 @@ export default function SettingsPage() {
                 </h3>
                 <div className="detail-grid">
                     {user.role === 'ADMIN' && (
-                        <>
-                            <InfoRow label="Ăn uống / ngày" value="1,000,000đ" />
-                            <InfoRow label="Khách sạn / đêm" value="2,000,000đ" />
-                            <InfoRow label="Tổng / chuyến" value="20,000,000đ" />
-                        </>
+                        <div style={{ color: 'var(--color-text-muted)', fontSize: 13, fontStyle: 'italic' }}>
+                            Quản trị viên không tham gia công tác nên không áp dụng hạn mức chi tiêu.
+                        </div>
                     )}
                     {user.role === 'MANAGER' && (
                         <>

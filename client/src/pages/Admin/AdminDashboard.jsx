@@ -4,7 +4,7 @@
 
 import { useState, useEffect } from 'react';
 import { adminAPI } from '../../api/client.js';
-import { Users, Plane, FileText, Wallet, Link2 } from 'lucide-react';
+import { FileText, Wallet, Link2 } from 'lucide-react';
 import {
     PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend,
     BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -58,18 +58,25 @@ export default function AdminDashboard() {
         fill: STATUS_COLORS[s.status]?.color || '#94a3b8',
     }));
 
+    // Count by status for stat cards
+    const statusMap = {};
+    stats.byStatus.forEach(s => { statusMap[s.status] = s; });
+    const pendingCount = statusMap.PENDING?._count?.id || statusMap.PENDING?.count || 0;
+    const approvedCount = (statusMap.APPROVED?.count || 0) + (statusMap.REIMBURSED?.count || 0);
+    const rejectedCount = statusMap.REJECTED?.count || 0;
+
     return (
         <div>
             <div className="page-header">
                 <h1>Bảng quản trị</h1>
             </div>
 
-            {/* ── Stat cards ── */}
+            {/* ── Stat cards — status-based ── */}
             <div className="stats-grid">
-                <StatCard icon={Users} color="#60a5fa" bg="rgba(96,165,250,0.1)" label="Tổng nhân viên" value={stats.overview.totalUsers} />
-                <StatCard icon={Plane} color="#2b9e9e" bg="rgba(43,158,158,0.1)" label="Tổng chuyến công tác" value={stats.overview.totalTrips} />
-                <StatCard icon={FileText} color="#7c6cf0" bg="rgba(124,108,240,0.1)" label="Tổng hóa đơn" value={stats.overview.totalExpenses} />
-                <StatCard icon={Wallet} color="#f59e0b" bg="rgba(251,191,36,0.12)" label="Tổng chi phí" value={formatVND(stats.overview.totalAmount)} />
+                <StatCard icon={Wallet} color="#2b9e9e" bg="rgba(43,158,158,0.1)" label="Tổng chi tiêu" value={formatVND(stats.overview.totalAmount)} />
+                <StatCard icon={FileText} color="#fbbf24" bg="rgba(251,191,36,0.12)" label="Chờ duyệt" value={pendingCount} />
+                <StatCard icon={FileText} color="#60a5fa" bg="rgba(96,165,250,0.1)" label="Đã duyệt" value={approvedCount} />
+                <StatCard icon={FileText} color="#f87171" bg="rgba(248,113,113,0.1)" label="Từ chối" value={rejectedCount} />
             </div>
 
             {/* ── Charts row ── */}
@@ -158,8 +165,6 @@ export default function AdminDashboard() {
                         {stats.blockchain.connected ? '● Đã kết nối' : '○ Offline'}
                     </span>
                 </h3>
-
-                {/* 3 blockchain stat cards */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 20 }}>
                     <div className="card" style={{ background: 'linear-gradient(135deg, rgba(43,158,158,0.08), rgba(59,130,246,0.06))', border: '1px solid rgba(43,158,158,0.15)' }}>
                         <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 6 }}>💰 Quỹ công ty</div>
@@ -171,68 +176,12 @@ export default function AdminDashboard() {
                     </div>
                     <div className="card" style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.08), rgba(52,211,153,0.06))', border: '1px solid rgba(16,185,129,0.15)' }}>
                         <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 6 }}>📤 Đã hoàn ứng</div>
-                        <div style={{ fontSize: 22, fontWeight: 700, color: '#10b981' }}>
-                            {formatVND(stats.blockchain.totalReimbursed)}
-                        </div>
+                        <div style={{ fontSize: 22, fontWeight: 700, color: '#10b981' }}>{formatVND(stats.blockchain.totalReimbursed)}</div>
                     </div>
                     <div className="card" style={{ background: 'linear-gradient(135deg, rgba(124,108,240,0.08), rgba(167,139,250,0.06))', border: '1px solid rgba(124,108,240,0.15)' }}>
                         <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 6 }}>🔗 Giao dịch on-chain</div>
-                        <div style={{ fontSize: 22, fontWeight: 700, color: '#7c6cf0' }}>
-                            {stats.blockchain.txCount} TX
-                        </div>
+                        <div style={{ fontSize: 22, fontWeight: 700, color: '#7c6cf0' }}>{stats.blockchain.txCount} TX</div>
                     </div>
-                </div>
-
-                {/* Recent transactions table */}
-                <div className="card">
-                    <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Giao dịch blockchain gần đây</h4>
-                    {(!stats.blockchain.recentTransactions || stats.blockchain.recentTransactions.length === 0) ? (
-                        <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: 24, fontSize: 13 }}>
-                            Chưa có giao dịch nào trên blockchain
-                        </p>
-                    ) : (
-                        <div style={{ overflowX: 'auto' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                                <thead>
-                                    <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                        <th style={thStyle}>Nhân viên</th>
-                                        <th style={thStyle}>Loại</th>
-                                        <th style={{ ...thStyle, textAlign: 'right' }}>Số tiền</th>
-                                        <th style={thStyle}>TX Hash</th>
-                                        <th style={{ ...thStyle, textAlign: 'right' }}>Thời gian</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {stats.blockchain.recentTransactions.map((tx) => (
-                                        <tr key={tx.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                            <td style={tdStyle}>
-                                                <div style={{ fontWeight: 500 }}>{tx.userName}</div>
-                                                <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{tx.department}</div>
-                                            </td>
-                                            <td style={tdStyle}>{tx.invoiceType || '—'}</td>
-                                            <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600, color: '#10b981' }}>
-                                                {formatVND(tx.amount)}
-                                            </td>
-                                            <td style={tdStyle}>
-                                                <a href={`https://sepolia.etherscan.io/tx/${tx.txHash}`} target="_blank" rel="noopener noreferrer"
-                                                    style={{ textDecoration: 'none' }}>
-                                                    <code style={{
-                                                        fontSize: 11, padding: '2px 6px', borderRadius: 4,
-                                                        background: 'rgba(124,108,240,0.08)', color: '#7c6cf0', cursor: 'pointer',
-                                                    }}>
-                                                        {tx.txHash?.substring(0, 10)}...{tx.txHash?.substring(tx.txHash.length - 6)} ↗
-                                                    </code>
-                                                </a>
-                                            </td>
-                                            <td style={{ ...tdStyle, textAlign: 'right', color: 'var(--color-text-muted)', fontSize: 12 }}>
-                                                {timeAgo(tx.createdAt)}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
                 </div>
             </div>
 

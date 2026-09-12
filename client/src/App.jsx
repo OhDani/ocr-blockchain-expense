@@ -10,6 +10,7 @@ import Layout from './components/Layout/Layout.jsx';
 
 // Pages
 import LoginPage from './pages/Login/LoginPage.jsx';
+import SetupPage from './pages/Setup/SetupPage.jsx';
 import DashboardPage from './pages/Dashboard/DashboardPage.jsx';
 import TripsPage from './pages/Trips/TripsPage.jsx';
 import ExpensesPage from './pages/Expenses/ExpensesPage.jsx';
@@ -19,7 +20,6 @@ import AdminExpenses from './pages/Admin/AdminExpenses.jsx';
 import AdminDepartments from './pages/Admin/AdminDepartments.jsx';
 import AdminUsers from './pages/Admin/AdminUsers.jsx';
 import AdminSettings from './pages/Admin/AdminSettings.jsx';
-import AdminBlockchain from './pages/Admin/AdminBlockchain.jsx';
 import SettingsPage from './pages/Settings/SettingsPage.jsx';
 import ReportsPage from './pages/Reports/ReportsPage.jsx';
 import NotificationsPage from './pages/Notifications/NotificationsPage.jsx';
@@ -69,6 +69,7 @@ export default function App() {
           path="/login"
           element={<GuestRoute><LoginPage /></GuestRoute>}
         />
+        <Route path="/setup" element={<SetupPage />} />
 
         <Route element={<Layout />}>
           {/* "/" hiện dashboard phù hợp theo role */}
@@ -90,7 +91,6 @@ export default function App() {
           <Route path="admin/expenses" element={<AdminRoute><AdminExpenses /></AdminRoute>} />
           <Route path="admin/departments" element={<AdminRoute><AdminDepartments /></AdminRoute>} />
           <Route path="admin/settings" element={<AdminRoute><AdminSettings /></AdminRoute>} />
-          <Route path="admin/blockchain" element={<AdminRoute><AdminBlockchain /></AdminRoute>} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

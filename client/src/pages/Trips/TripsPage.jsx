@@ -3,7 +3,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { tripAPI } from '../../api/client.js';
+import { tripAPI, adminAPI } from '../../api/client.js';
 import {
     Plane, Plus, X, MapPin, Eye, Calendar, Target, CreditCard, FileText, Filter,
     Clock, Trash2, Handshake, Car, Hotel, UtensilsCrossed, Compass, ClipboardList,
@@ -57,12 +57,17 @@ export default function TripsPage() {
     const [detailLoading, setDetailLoading] = useState(false);
     const [expenseModalId, setExpenseModalId] = useState(null);
     const [deptFilter, setDeptFilter] = useState('');
+    const [statusFilter, setStatusFilter] = useState('');
+    const [monthFilter, setMonthFilter] = useState('');
+    const [yearFilter, setYearFilter] = useState('');
     const [detailTab, setDetailTab] = useState('info');
     const toast = useToast();
     const { user: currentUser } = useAuth();
+    const isManager = currentUser?.role === 'MANAGER';
+    const [deptEmployees, setDeptEmployees] = useState([]);
     const [form, setForm] = useState({
         destination: '', workLocation: '', purpose: '',
-        startDate: '', endDate: '', budget: '',
+        startDate: '', endDate: '', budget: '', userId: '',
     });
 
     const [showActivityForm, setShowActivityForm] = useState(false);
@@ -83,14 +88,29 @@ export default function TripsPage() {
         }
     };
 
-    useEffect(() => { fetchTrips(); }, []);
+    useEffect(() => {
+        fetchTrips();
+        // Manager: load danh sách nhân viên phòng ban
+        if (isManager) {
+            adminAPI.users().then(res => {
+                const myDeptId = currentUser?.departmentId;
+                const employees = (res.data || []).filter(u => 
+                    u.department?.id === myDeptId || u.departmentId === myDeptId
+                );
+                setDeptEmployees(employees);
+            }).catch(console.error);
+        }
+    }, []);
 
     const handleCreate = async (e) => {
         e.preventDefault();
         try {
-            await tripAPI.create(form);
+            const payload = { ...form };
+            // Manager gửi userId nếu chọn nhân viên
+            if (!payload.userId) delete payload.userId;
+            await tripAPI.create(payload);
             setShowForm(false);
-            setForm({ destination: '', workLocation: '', purpose: '', startDate: '', endDate: '', budget: '' });
+            setForm({ destination: '', workLocation: '', purpose: '', startDate: '', endDate: '', budget: '', userId: '' });
             toast('Tạo chuyến công tác thành công!', 'success');
             fetchTrips();
         } catch (err) {
@@ -234,6 +254,18 @@ export default function TripsPage() {
                             <input className="form-input" placeholder="Họp đối tác + khảo sát thị trường" value={form.purpose}
                                 onChange={(e) => setForm({ ...form, purpose: e.target.value })} />
                         </div>
+                        {isManager && deptEmployees.length > 0 && (
+                            <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                                <label>Tạo cho nhân viên</label>
+                                <select className="form-input" value={form.userId}
+                                    onChange={(e) => setForm({ ...form, userId: e.target.value })}>
+                                    <option value="">Bản thân tôi</option>
+                                    {deptEmployees.filter(e => e.id !== currentUser?.id).map(emp => (
+                                        <option key={emp.id} value={emp.id}>{emp.name} ({emp.email})</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
                         <div className="form-group">
                             <label>Ngày đi *</label>
                             <input className="form-input" type="date" value={form.startDate}
@@ -270,9 +302,37 @@ export default function TripsPage() {
                 </div>
             ) : (
                 <div className="card">
-                    {['ADMIN', 'MANAGER'].includes(currentUser?.role) && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                            <Filter size={14} style={{ color: 'var(--color-text-muted)' }} />
+                    {/* Filter bar */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+                        <Filter size={14} style={{ color: 'var(--color-text-muted)' }} />
+                        <select className="form-input" value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                            style={{ width: 'auto', minWidth: 150, padding: '6px 10px', fontSize: 13 }}
+                        >
+                            <option value="">Tất cả trạng thái</option>
+                            {Object.entries(TRIP_STATUS).map(([key, val]) => (
+                                <option key={key} value={key}>{val.label}</option>
+                            ))}
+                        </select>
+                        <select className="form-input" value={monthFilter}
+                            onChange={(e) => setMonthFilter(e.target.value)}
+                            style={{ width: 'auto', minWidth: 120, padding: '6px 10px', fontSize: 13 }}
+                        >
+                            <option value="">Tất cả tháng</option>
+                            {Array.from({ length: 12 }, (_, i) => (
+                                <option key={i + 1} value={String(i + 1)}>Tháng {i + 1}</option>
+                            ))}
+                        </select>
+                        <select className="form-input" value={yearFilter}
+                            onChange={(e) => setYearFilter(e.target.value)}
+                            style={{ width: 'auto', minWidth: 100, padding: '6px 10px', fontSize: 13 }}
+                        >
+                            <option value="">Tất cả năm</option>
+                            {[...new Set(trips.map(t => new Date(t.startDate).getFullYear()))].sort((a, b) => b - a).map(y => (
+                                <option key={y} value={String(y)}>{y}</option>
+                            ))}
+                        </select>
+                        {['ADMIN', 'MANAGER'].includes(currentUser?.role) && (
                             <select className="form-input" value={deptFilter}
                                 onChange={(e) => setDeptFilter(e.target.value)}
                                 style={{ width: 'auto', minWidth: 180, padding: '6px 10px', fontSize: 13 }}
@@ -282,8 +342,8 @@ export default function TripsPage() {
                                     <option key={d} value={d}>{d}</option>
                                 ))}
                             </select>
-                        </div>
-                    )}
+                        )}
+                    </div>
                     <table className="data-table">
                         <thead>
                             <tr>
@@ -297,7 +357,13 @@ export default function TripsPage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {trips.filter(t => !deptFilter || t.user?.department?.name === deptFilter).map((t) => {
+                            {trips.filter(t => {
+                                if (deptFilter && t.user?.department?.name !== deptFilter) return false;
+                                if (statusFilter && t.status !== statusFilter) return false;
+                                if (monthFilter && (new Date(t.startDate).getMonth() + 1) !== Number(monthFilter)) return false;
+                                if (yearFilter && new Date(t.startDate).getFullYear() !== Number(yearFilter)) return false;
+                                return true;
+                            }).map((t) => {
                                 const status = TRIP_STATUS[t.status] || TRIP_STATUS.PLANNED;
                                 const totalExpenses = t.expenses?.reduce((sum, e) => sum + e.amount, 0) || 0;
                                 return (

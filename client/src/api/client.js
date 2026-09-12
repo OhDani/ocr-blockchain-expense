@@ -28,8 +28,8 @@ async function request(endpoint, options = {}) {
     const data = await response.json();
 
     if (!response.ok) {
-        // Token hết hạn → logout
-        if (response.status === 401) {
+        // Token hết hạn → logout (nhưng không áp dụng cho route đăng nhập)
+        if (response.status === 401 && endpoint !== '/auth/login') {
             localStorage.removeItem('token');
             localStorage.removeItem('user');
             window.location.href = '/login';
@@ -125,6 +125,12 @@ export const expenseAPI = {
         const token = localStorage.getItem('token');
         return `${API_BASE}/expenses/${id}/image?token=${token}`;
     },
+
+    manual: (data) =>
+        request('/expenses/manual', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        }),
 };
 
 // ──────── Admin ────────
@@ -158,8 +164,15 @@ export const adminAPI = {
             body: JSON.stringify(data),
         }),
 
+    deleteUser: (id) =>
+        request(`/admin/users/${id}`, { method: 'DELETE' }),
+
+    registerBlockchain: (id) =>
+        request(`/admin/users/${id}/register-blockchain`, { method: 'POST' }),
+
     reports: () => request('/admin/reports'),
     reportsPersonal: () => request('/admin/reports/personal'),
+    reportsDepartment: (deptId) => request(`/admin/reports/department${deptId ? `?departmentId=${deptId}` : ''}`),
     blockchain: () => request('/admin/blockchain'),
 };
 

@@ -63,7 +63,7 @@ router.get('/me', async (req, res, next) => {
     try {
         const user = await prisma.user.findUnique({
             where: { id: req.user.id },
-            select: { id: true, name: true, email: true, role: true, department: { select: { id: true, name: true } }, walletAddress: true, wallet: true, avatarUrl: true },
+            select: { id: true, name: true, email: true, role: true, department: { select: { id: true, name: true } }, departmentSelfSelected: true, walletAddress: true, wallet: true, avatarUrl: true },
         });
         res.json({ success: true, data: user });
     } catch (error) {
@@ -113,8 +113,11 @@ router.patch('/profile', async (req, res, next) => {
         // Hiện tại cho phép user tự chọn phòng ban
         const updated = await prisma.user.update({
             where: { id: req.user.id },
-            data: { departmentId: departmentId || null },
-            select: { id: true, name: true, email: true, role: true, department: { select: { id: true, name: true } }, walletAddress: true, wallet: true, avatarUrl: true },
+            data: { 
+                departmentId: departmentId || null,
+                departmentSelfSelected: true
+            },
+            select: { id: true, name: true, email: true, role: true, department: { select: { id: true, name: true } }, departmentSelfSelected: true, walletAddress: true, wallet: true, avatarUrl: true },
         });
 
         res.json({ success: true, data: updated });
@@ -158,13 +161,22 @@ router.get('/activity', async (req, res, next) => {
                 reviews: {
                     orderBy: { createdAt: 'desc' },
                     take: 1,
-                    select: { action: true, createdAt: true, reviewer: { select: { name: true } } },
+                    select: { action: true, createdAt: true, reviewerId: true },
                 },
                 blockchainTx: {
                     select: { txHash: true, status: true, createdAt: true },
                 },
             },
         });
+
+        // Lấy tên reviewer (nếu có)
+        const reviewerIds = [...new Set(
+            expenses.flatMap(e => e.reviews.map(r => r.reviewerId)).filter(Boolean)
+        )];
+        const reviewers = reviewerIds.length > 0
+            ? await prisma.user.findMany({ where: { id: { in: reviewerIds } }, select: { id: true, name: true } })
+            : [];
+        const reviewerMap = Object.fromEntries(reviewers.map(r => [r.id, r.name]));
 
         // Tạo activity timeline
         const activities = [];
@@ -177,10 +189,11 @@ router.get('/activity', async (req, res, next) => {
             });
             if (exp.reviews?.[0]) {
                 const review = exp.reviews[0];
+                const reviewerName = reviewerMap[review.reviewerId] || 'Admin';
                 const actionLabel = review.action === 'APPROVE' ? 'Được duyệt' : review.action === 'REJECT' ? 'Bị từ chối' : 'Được xử lý lại';
                 activities.push({
                     type: review.action,
-                    description: `${actionLabel} bởi ${review.reviewer?.name || 'Admin'} - ${Number(exp.amount).toLocaleString('vi-VN')}đ`,
+                    description: `${actionLabel} bởi ${reviewerName} - ${Number(exp.amount).toLocaleString('vi-VN')}đ`,
                     timestamp: review.createdAt,
                     expenseId: exp.id,
                 });
