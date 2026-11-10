@@ -217,5 +217,20 @@ router.get('/activity', async (req, res, next) => {
     }
 });
 
+/**
+ * GET /api/user/policy-limits — Hạn mức chi tiêu theo role
+ */
+router.get('/policy-limits', async (req, res, next) => {
+    try {
+        const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+        const limits = await prisma.policyLimit.findUnique({
+            where: { role: user.role },
+        });
+        res.json({ success: true, data: limits });
+    } catch (error) {
+        next(error);
+    }
+});
+
 export default router;
 

@@ -359,15 +359,31 @@ export default function UploadPage() {
                                         <span className="result-policy__value">{result.policy?.details?.role_label || '—'}</span>
                                     </div>
                                     <div className="result-policy__item">
-                                        <span className="result-policy__label">Hạn mức/ngày</span>
-                                        <span className="result-policy__value">{formatMoney(result.policy?.details?.daily_limit)}</span>
-                                    </div>
-                                    <div className="result-policy__item">
-                                        <span className="result-policy__label">Số tiền thực tế</span>
+                                        <span className="result-policy__label">Số tiền hóa đơn</span>
                                         <span className="result-policy__value" style={{ fontWeight: 700, color: policyStatus === 'valid' ? 'var(--color-success)' : 'var(--color-danger)' }}>
                                             {formatMoney(result.policy?.details?.actual_amount)}
                                         </span>
                                     </div>
+                                    <div className="result-policy__item">
+                                        <span className="result-policy__label">Hạn mức/hóa đơn</span>
+                                        <span className="result-policy__value">{formatMoney(result.policy?.details?.per_invoice_limit)}</span>
+                                    </div>
+                                    <div className="result-policy__item">
+                                        <span className="result-policy__label">Hạn mức/ngày</span>
+                                        <span className="result-policy__value">{formatMoney(result.policy?.details?.daily_limit)}</span>
+                                    </div>
+                                    <div className="result-policy__item">
+                                        <span className="result-policy__label">Tổng chi hôm nay</span>
+                                        <span className="result-policy__value" style={{ color: result.policy?.details?.daily_total > result.policy?.details?.daily_limit ? 'var(--color-danger)' : 'inherit' }}>
+                                            {formatMoney(result.policy?.details?.daily_total)}
+                                        </span>
+                                    </div>
+                                    {result.policy?.details?.per_trip_limit && (
+                                        <div className="result-policy__item">
+                                            <span className="result-policy__label">Hạn mức/chuyến</span>
+                                            <span className="result-policy__value">{formatMoney(result.policy?.details?.per_trip_limit)}</span>
+                                        </div>
+                                    )}
                                     <div className="result-policy__item">
                                         <span className="result-policy__label">Trạng thái</span>
                                         <span className={`badge ${policyStatus === 'valid' ? 'badge-success' : policyStatus === 'over_budget' ? 'badge-warning' : 'badge-danger'}`}>

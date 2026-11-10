@@ -200,6 +200,7 @@ export const userAPI = {
 
     me: () => request('/user/me'),
     activity: () => request('/user/activity'),
+    policyLimits: () => request('/user/policy-limits'),
 };
 
 // ──────── Notifications ────────

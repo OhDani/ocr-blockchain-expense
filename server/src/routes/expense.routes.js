@@ -107,6 +107,8 @@ router.post('/upload', upload.single('invoice'), async (req, res, next) => {
             ocrData: parseResult.data,
             employeeRole: user.role,
             approvedBudget: trip?.budget,
+            userId: req.user.id,
+            tripId: tripId || null,
         });
 
         // ⑤ AI Fraud Detection — Phân tích rủi ro
@@ -304,6 +306,8 @@ router.post('/manual', async (req, res, next) => {
             ocrData: parsedData,
             employeeRole: user.role,
             approvedBudget: trip?.budget,
+            userId: req.user.id,
+            tripId,
         });
 
         // Tạo invoice hash từ data

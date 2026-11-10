@@ -26,10 +26,17 @@ export default function SettingsPage() {
     const [editingDept, setEditingDept] = useState(false);
     const [selectedDeptId, setSelectedDeptId] = useState('');
     const [depts, setDepts] = useState([]);
+    const [policyLimits, setPolicyLimits] = useState(null);
 
     useEffect(() => {
         userAPI.departments().then(res => setDepts(res.data)).catch(console.error);
+        userAPI.policyLimits().then(res => setPolicyLimits(res.data)).catch(console.error);
     }, []);
+
+    const formatLimit = (val) => {
+        if (!val && val !== 0) return 'Không giới hạn';
+        return Number(val).toLocaleString('vi-VN') + 'đ';
+    };
 
     if (!user) return null;
 
@@ -205,23 +212,15 @@ export default function SettingsPage() {
                     <Briefcase size={16} /> Hạn mức chi tiêu
                 </h3>
                 <div className="detail-grid">
-                    {user.role === 'ADMIN' && (
+                    {user.role === 'ADMIN' ? (
                         <div style={{ color: 'var(--color-text-muted)', fontSize: 13, fontStyle: 'italic' }}>
-                            Quản trị viên không tham gia công tác nên không áp dụng hạn mức chi tiêu.
+                            Quản trị viên không áp dụng hạn mức chi tiêu.
                         </div>
-                    )}
-                    {user.role === 'MANAGER' && (
+                    ) : (
                         <>
-                            <InfoRow label="Ăn uống / ngày" value="700,000đ" />
-                            <InfoRow label="Khách sạn / đêm" value="1,500,000đ" />
-                            <InfoRow label="Tổng / chuyến" value="15,000,000đ" />
-                        </>
-                    )}
-                    {user.role === 'EMPLOYEE' && (
-                        <>
-                            <InfoRow label="Ăn uống / ngày" value="500,000đ" />
-                            <InfoRow label="Khách sạn / đêm" value="1,000,000đ" />
-                            <InfoRow label="Tổng / chuyến" value="10,000,000đ" />
+                            <InfoRow label="Hạn mức / ngày" value={policyLimits ? formatLimit(policyLimits.dailyLimit) : '—'} />
+                            <InfoRow label="Hạn mức / hóa đơn" value={policyLimits ? formatLimit(policyLimits.perInvoiceLimit) : '—'} />
+                            <InfoRow label="Hạn mức / chuyến" value={policyLimits ? formatLimit(policyLimits.totalPerTripLimit) : '—'} />
                         </>
                     )}
                 </div>
