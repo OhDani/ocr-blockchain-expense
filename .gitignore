@@ -35,3 +35,4 @@ npm-debug.log*
 
 # Contract deploy output
 contracts/deployed-addresses.json
+server/src/services/blockchain/test.js

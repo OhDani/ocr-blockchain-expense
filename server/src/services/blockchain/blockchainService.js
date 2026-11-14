@@ -12,6 +12,7 @@ import { ethers } from 'ethers';
 import { readFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { ExpenseManagerABI, MockVNDABI } from './abis.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -63,15 +64,21 @@ export function initBlockchain() {
 }
 
 /**
- * Load ABI từ compiled artifacts.
+ * Load ABI từ abis.js (hoặc fallback về compiled artifacts nếu có).
  */
 function loadABI(contractFile, contractName) {
-    const artifactPath = join(ARTIFACTS_DIR, contractFile, `${contractName}.json`);
-    if (!existsSync(artifactPath)) {
-        throw new Error(`ABI not found: ${artifactPath}. Hãy chạy 'npx hardhat compile' trước.`);
+    if (contractName === 'ExpenseManager' && ExpenseManagerABI) {
+        return ExpenseManagerABI;
     }
-    const artifact = JSON.parse(readFileSync(artifactPath, 'utf8'));
-    return artifact.abi;
+    if (contractName === 'MockVND' && MockVNDABI) {
+        return MockVNDABI;
+    }
+    const artifactPath = join(ARTIFACTS_DIR, contractFile, `${contractName}.json`);
+    if (existsSync(artifactPath)) {
+        const artifact = JSON.parse(readFileSync(artifactPath, 'utf8'));
+        return artifact.abi;
+    }
+    throw new Error(`ABI not found: ${contractName}.`);
 }
 
 /**
