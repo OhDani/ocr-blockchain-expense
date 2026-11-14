@@ -5,7 +5,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
-import { userAPI } from '../../api/client.js';
+import { userAPI, getAssetUrl } from '../../api/client.js';
 import { User, Mail, Briefcase, Building2, Wallet, Shield, Camera, Edit2, Check } from 'lucide-react';
 
 const ROLE_LABELS = {
@@ -68,7 +68,7 @@ export default function SettingsPage() {
         }
     };
 
-    const avatarSrc = user.avatarUrl ? `http://localhost:3000${user.avatarUrl}` : null;
+    const avatarSrc = user.avatarUrl ? getAssetUrl(user.avatarUrl) : null;
 
     const handlePasswordChange = async (e) => {
         e.preventDefault();

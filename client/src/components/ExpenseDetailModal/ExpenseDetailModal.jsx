@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { expenseAPI } from '../../api/client.js';
+import { expenseAPI, API_BASE } from '../../api/client.js';
 import {
     X, Bot, ClipboardCheck, Link2, Image as ImageIcon, Store, Hash,
     Calendar, CreditCard, FileText, CheckCircle, XCircle,
@@ -51,7 +51,7 @@ export default function ExpenseDetailModal({ expenseId, onClose }) {
 
     // Ảnh hóa đơn từ DB (cần token trong query param vì img src không gửi header)
     const token = localStorage.getItem('token');
-    const imageUrl = expense?.id ? `http://localhost:3000/api/expenses/${expense.id}/image?token=${token}` : null;
+    const imageUrl = expense?.id ? `${API_BASE}/expenses/${expense.id}/image?token=${token}` : null;
 
     const tabs = [
         { id: 'info', label: 'Hóa đơn', icon: FileText },

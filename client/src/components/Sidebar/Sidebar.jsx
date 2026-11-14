@@ -4,6 +4,7 @@
 
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { getAssetUrl } from '../../api/client.js';
 import {
     LayoutDashboard, Plane, FileText, Camera,
     Building2, ClipboardCheck, BarChart3, LogOut, Settings, Users,
@@ -95,7 +96,7 @@ export default function Sidebar({ isOpen, onClose }) {
                 <div className="sidebar__user">
                     <div className="sidebar__avatar">
                         {user?.avatarUrl ? (
-                            <img src={`http://localhost:3000${user.avatarUrl}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                            <img src={getAssetUrl(user.avatarUrl)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
                         ) : (
                             user?.name?.charAt(0) || '?'
                         )}

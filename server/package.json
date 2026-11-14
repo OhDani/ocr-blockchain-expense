@@ -8,6 +8,7 @@
         "start": "node src/index.js",
         "db:migrate": "npx prisma migrate dev",
         "db:seed": "node prisma/seed.js",
+        "keep-alive": "node src/scripts/keep-alive.js",
         "test": "node --test test/**/*.test.js"
     },
     "dependencies": {

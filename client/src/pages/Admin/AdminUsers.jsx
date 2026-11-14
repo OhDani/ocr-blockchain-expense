@@ -3,7 +3,7 @@
  */
 
 import { useState, useEffect, useMemo } from 'react';
-import { adminAPI } from '../../api/client.js';
+import { adminAPI, getAssetUrl } from '../../api/client.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { Users, Shield, UserCheck, Search, Plus, X, Save, Trash2, Link2, Loader2, CheckCircle2 } from 'lucide-react';
 import Pagination, { usePagination } from '../../components/Pagination/Pagination.jsx';
@@ -302,7 +302,7 @@ export default function AdminUsers() {
                                                     fontWeight: 700, fontSize: 13, flexShrink: 0,
                                                 }}>
                                                     {u.avatarUrl ? (
-                                                        <img src={`http://localhost:3000${u.avatarUrl}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                                                        <img src={getAssetUrl(u.avatarUrl)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
                                                     ) : u.name?.charAt(0)}
                                                 </div>
                                                 <span style={{ fontWeight: 500 }}>{u.name}</span>

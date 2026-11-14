@@ -2,7 +2,14 @@
  * client.js — Axios-style fetch wrapper với JWT interceptor.
  */
 
-const API_BASE = 'http://localhost:3000/api';
+export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+export const API_HOST = API_BASE.replace(/\/api\/?$/, '');
+
+export function getAssetUrl(path) {
+    if (!path) return '';
+    if (path.startsWith('http://') || path.startsWith('https://')) return path;
+    return `${API_HOST}${path.startsWith('/') ? '' : '/'}${path}`;
+}
 
 /**
  * Gọi API với JWT token tự động.

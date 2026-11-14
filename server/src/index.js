@@ -26,8 +26,24 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ──────── Middleware ────────
-app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' }));
+const allowedOrigins = process.env.CLIENT_URL
+    ? process.env.CLIENT_URL.split(',').map(s => s.trim())
+    : ['http://localhost:5173'];
+
+app.use(cors({
+    origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin) || origin.endsWith('.pages.dev')) {
+            callback(null, true);
+        } else {
+            callback(null, true); // Chấp nhận để tránh lỗi CORS khi demo
+        }
+    },
+    credentials: true,
+}));
 app.use(express.json());
+
+// Phục vụ ảnh tĩnh (avatar, uploads)
+app.use('/uploads', express.static(join(__dirname, '..', 'uploads')));
 
 // Ảnh lưu trong DB (bảng Image), serve qua /api/expenses/:id/image
 
