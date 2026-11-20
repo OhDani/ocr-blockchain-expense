@@ -11,6 +11,7 @@ import {
     AlertTriangle, Clock, Loader, ShieldAlert, RotateCcw,
 } from 'lucide-react';
 import ImagePreviewModal from '../ImagePreviewModal/ImagePreviewModal.jsx';
+import { getTxUrl } from '../../utils/explorer.js';
 import './ExpenseDetailModal.css';
 
 const STATUS_MAP = {
@@ -312,7 +313,7 @@ export default function ExpenseDetailModal({ expenseId, onClose }) {
                                                             <Hash size={14} /> TX Hash
                                                         </div>
                                                         <div className="detail-row__value detail-row__value--mono">
-                                                            <a href={`https://sepolia.etherscan.io/tx/${blockchain.txHash}`} target="_blank" rel="noopener noreferrer"
+                                                            <a href={getTxUrl(blockchain.txHash)} target="_blank" rel="noopener noreferrer"
                                                                 style={{ color: '#2b9e9e', textDecoration: 'none' }}>
                                                                 {blockchain.txHash} ↗
                                                             </a>

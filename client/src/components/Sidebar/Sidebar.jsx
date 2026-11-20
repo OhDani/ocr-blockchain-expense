@@ -8,7 +8,7 @@ import { getAssetUrl } from '../../api/client.js';
 import {
     LayoutDashboard, Plane, FileText, Camera,
     Building2, ClipboardCheck, BarChart3, LogOut, Settings, Users,
-    PieChart, Bell, Activity, Link2,
+    PieChart, Bell, Activity,
 } from 'lucide-react';
 import NotificationBell from '../NotificationBell/NotificationBell.jsx';
 import './Sidebar.css';

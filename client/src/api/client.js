@@ -55,6 +55,12 @@ export const authAPI = {
             body: JSON.stringify({ email, password }),
         }),
 
+    googleLogin: (payload) =>
+        request('/auth/google', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        }),
+
     getMe: () => request('/auth/me'),
 };
 
@@ -208,6 +214,14 @@ export const userAPI = {
     me: () => request('/user/me'),
     activity: () => request('/user/activity'),
     policyLimits: () => request('/user/policy-limits'),
+    getWalletNonce: (address) =>
+        request(`/user/wallet/nonce${address ? `?address=${encodeURIComponent(address)}` : ''}`),
+    linkWallet: (data) =>
+        request('/user/wallet/link', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        }),
+    walletStatus: () => request('/user/wallet/status'),
 };
 
 // ──────── Notifications ────────

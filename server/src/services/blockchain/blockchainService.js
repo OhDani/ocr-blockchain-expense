@@ -1,6 +1,6 @@
 /**
  * blockchainService.js
- * Bridge giữa backend Express và Smart Contract trên Ethereum (Sepolia Testnet).
+ * Bridge giữa backend Express và Smart Contract trên Linea Sepolia (zkEVM L2).
  * 
  * Sử dụng server-side wallet (private key từ .env) để:
  * - Submit expense lên smart contract (đại diện cho nhân viên)
@@ -30,7 +30,7 @@ let mockVNDContract = null;
  * Gọi 1 lần khi server start.
  */
 export function initBlockchain() {
-    const rpcUrl = process.env.BLOCKCHAIN_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com';
+    const rpcUrl = process.env.BLOCKCHAIN_RPC_URL || 'https://rpc.sepolia.linea.build';
     const privateKey = process.env.ADMIN_PRIVATE_KEY;
     const emAddress = process.env.EXPENSE_MANAGER_ADDRESS;
     const vndAddress = process.env.VVND_CONTRACT_ADDRESS;
@@ -133,6 +133,13 @@ export async function submitExpenseOnChain(amount, invoiceHash, employeeWallet) 
     }
 
     try {
+        // Tự động kiểm tra và đăng ký ví nhân viên trên Linea Smart Contract nếu chưa được đăng ký
+        const isRegistered = await checkEmployeeRegisteredOnChain(employeeWallet);
+        if (!isRegistered) {
+            console.log(`🔗 Tự động đăng ký ví nhân viên ${employeeWallet} trên Linea Smart Contract...`);
+            await registerEmployeeOnChain(employeeWallet, 'EMPLOYEE');
+        }
+
         // Gọi submitExpenseFor — validator submit thay cho nhân viên
         const tx = await expenseManagerContract.submitExpenseFor(
             employeeWallet,

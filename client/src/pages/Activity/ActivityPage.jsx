@@ -5,6 +5,7 @@
 import { useState, useEffect } from 'react';
 import { userAPI } from '../../api/client.js';
 import { Activity, FileUp, Check, XCircle, RefreshCw, Link2, Clock } from 'lucide-react';
+import { getTxUrl } from '../../utils/explorer.js';
 
 const TYPE_MAP = {
     SUBMIT: { label: 'Nộp hóa đơn', icon: <FileUp size={16} />, color: '#60a5fa', bg: 'rgba(96,165,250,0.1)' },
@@ -105,7 +106,7 @@ export default function ActivityPage() {
                                                         <div style={{ fontWeight: 500, fontSize: 14 }}>{a.description}</div>
                                                         {a.txHash && (
                                                             <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4, fontFamily: 'monospace' }}>
-                                                                TX: <a href={`https://sepolia.etherscan.io/tx/${a.txHash}`} target="_blank" rel="noopener noreferrer"
+                                                                TX: <a href={getTxUrl(a.txHash)} target="_blank" rel="noopener noreferrer"
                                                                     style={{ color: '#2b9e9e', textDecoration: 'none' }}>
                                                                     {a.txHash.substring(0, 12)}...{a.txHash.substring(a.txHash.length - 6)} ↗
                                                                 </a>

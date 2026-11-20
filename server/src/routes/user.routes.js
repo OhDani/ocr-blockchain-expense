@@ -7,12 +7,16 @@ import { PrismaClient } from '@prisma/client';
 import multer from 'multer';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import bcrypt from 'bcrypt';
+import crypto from 'crypto';
+import { ethers } from 'ethers';
+import { registerEmployeeOnChain, checkEmployeeRegisteredOnChain, getVNDBalance, isBlockchainReady } from '../services/blockchain/blockchainService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const prisma = new PrismaClient();
 const router = Router();
-import bcrypt from 'bcrypt';
+const walletNonceStore = new Map();
 
 import { authenticate } from '../middleware/auth.js';
 router.use(authenticate);
@@ -227,6 +231,180 @@ router.get('/policy-limits', async (req, res, next) => {
             where: { role: user.role },
         });
         res.json({ success: true, data: limits });
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * GET /api/user/wallet/nonce — Sinh challenge nonce xác thực quyền sở hữu ví cá nhân
+ */
+router.get('/wallet/nonce', async (req, res, next) => {
+    try {
+        const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+        if (!user) {
+            return res.status(404).json({ success: false, error: 'User không tồn tại' });
+        }
+
+        const nonce = crypto.randomBytes(16).toString('hex');
+        const expiresAt = Date.now() + 5 * 60 * 1000; // Có hiệu lực trong 5 phút
+        walletNonceStore.set(req.user.id, { nonce, expiresAt });
+
+        const address = req.query.address || '';
+        const timestamp = new Date().toISOString();
+        const message = [
+            'FlexiTrip Expense Management - Xác thực ví cá nhân',
+            `Tài khoản: ${user.email}`,
+            address ? `Địa chỉ ví: ${address}` : null,
+            `Nonce: ${nonce}`,
+            `Thời gian: ${timestamp}`,
+            '',
+            'Bằng việc ký thông điệp này, bạn xác nhận mình là chủ sở hữu hợp pháp của ví để nhận tiền hoàn ứng.',
+        ].filter(Boolean).join('\n');
+
+        res.json({
+            success: true,
+            data: {
+                nonce,
+                message,
+                expiresAt,
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * POST /api/user/wallet/link — Liên kết ví cá nhân thông qua chữ ký mật mã (EIP-191)
+ */
+router.post('/wallet/link', async (req, res, next) => {
+    try {
+        const { address, signature, message } = req.body;
+        if (!address || !signature || !message) {
+            return res.status(400).json({ success: false, error: 'Thiếu thông tin xác thực ví (address, signature, message)' });
+        }
+
+        if (!ethers.isAddress(address)) {
+            return res.status(400).json({ success: false, error: 'Địa chỉ ví không đúng định dạng EVM/Ethereum' });
+        }
+
+        const stored = walletNonceStore.get(req.user.id);
+        if (!stored || Date.now() > stored.expiresAt) {
+            return res.status(400).json({ success: false, error: 'Phiên xác thực đã hết hạn (quá 5 phút). Vui lòng thử lại.' });
+        }
+
+        if (!message.includes(stored.nonce)) {
+            return res.status(400).json({ success: false, error: 'Mã nonce trong thông điệp không khớp với phiên làm việc' });
+        }
+
+        // Xác thực chữ ký số (EIP-191 personal_sign)
+        let recoveredAddress;
+        try {
+            recoveredAddress = ethers.verifyMessage(message, signature);
+        } catch {
+            return res.status(400).json({ success: false, error: 'Chữ ký mật mã không hợp lệ hoặc bị lỗi' });
+        }
+
+        if (recoveredAddress.toLowerCase() !== address.toLowerCase()) {
+            return res.status(400).json({ success: false, error: 'Chữ ký không khớp với địa chỉ ví cung cấp' });
+        }
+
+        // Kiểm tra xem ví này đã được liên kết với nhân viên nào khác chưa
+        const existingOtherUser = await prisma.user.findFirst({
+            where: {
+                walletAddress: { equals: address, mode: 'insensitive' },
+                NOT: { id: req.user.id },
+            },
+        });
+        if (existingOtherUser) {
+            return res.status(409).json({ success: false, error: 'Địa chỉ ví này đã được liên kết với một tài khoản khác trong công ty' });
+        }
+
+        // Cập nhật ví vào database
+        const updated = await prisma.user.update({
+            where: { id: req.user.id },
+            data: {
+                walletAddress: address,
+                wallet: {
+                    upsert: {
+                        create: { address, balance: 0 },
+                        update: { address },
+                    },
+                },
+            },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+                department: { select: { id: true, name: true } },
+                walletAddress: true,
+                wallet: true,
+                avatarUrl: true,
+            },
+        });
+
+        // Xóa nonce đã dùng
+        walletNonceStore.delete(req.user.id);
+
+        // Đăng ký nhân viên trên Smart Contract (nếu blockchain đang sẵn sàng và role != ADMIN)
+        let blockchainReg = null;
+        if (isBlockchainReady() && updated.role !== 'ADMIN') {
+            try {
+                blockchainReg = await registerEmployeeOnChain(address, updated.role);
+            } catch (chainErr) {
+                console.warn('⚠️ Blockchain registration warning:', chainErr.message);
+            }
+        }
+
+        res.json({
+            success: true,
+            message: 'Liên kết và xác thực ví Web3 thành công!',
+            data: updated,
+            blockchain: blockchainReg,
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * GET /api/user/wallet/status — Kiểm tra trạng thái ví trên Blockchain (đăng ký on-chain & số dư vVND)
+ */
+router.get('/wallet/status', async (req, res, next) => {
+    try {
+        const user = await prisma.user.findUnique({
+            where: { id: req.user.id },
+            select: { id: true, walletAddress: true, role: true },
+        });
+
+        if (!user || !user.walletAddress) {
+            return res.json({ success: true, data: { hasWallet: false } });
+        }
+
+        let isRegistered = false;
+        let vVNDBalance = 0;
+
+        if (isBlockchainReady()) {
+            try {
+                isRegistered = await checkEmployeeRegisteredOnChain(user.walletAddress);
+                const bal = await getVNDBalance(user.walletAddress);
+                if (bal !== null) vVNDBalance = bal;
+            } catch (err) {
+                console.warn('⚠️ Lỗi kiểm tra blockchain status:', err.message);
+            }
+        }
+
+        res.json({
+            success: true,
+            data: {
+                hasWallet: true,
+                address: user.walletAddress,
+                isRegisteredOnChain: isRegistered,
+                balance: vVNDBalance,
+            },
+        });
     } catch (error) {
         next(error);
     }

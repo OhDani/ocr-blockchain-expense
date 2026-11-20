@@ -27,11 +27,28 @@ router.get('/dashboard', requireAdmin, async (req, res, next) => {
 
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        const monthlyExpenses = await prisma.expense.aggregate({
+
+        // Hóa đơn trong tháng này:
+        // - Số lượng hóa đơn: tổng tất cả hóa đơn phát sinh trong tháng
+        // - Tổng chi (amount): CHỈ tính các hóa đơn ĐÃ DUYỆT hoặc ĐÃ HOÀN ỨNG (APPROVED, REIMBURSED)
+        const monthlyTotalExpenses = await prisma.expense.aggregate({
             _count: { id: true },
-            _sum: { amount: true },
             where: { createdAt: { gte: startOfMonth } },
         });
+
+        const monthlyApprovedExpenses = await prisma.expense.aggregate({
+            _count: { id: true },
+            _sum: { amount: true },
+            where: {
+                createdAt: { gte: startOfMonth },
+                status: { in: ['APPROVED', 'REIMBURSED'] },
+            },
+        });
+
+        // Tổng chi tiêu toàn hệ thống: Chỉ tính hóa đơn ĐÃ DUYỆT hoặc ĐÃ HOÀN ỨNG
+        const totalApprovedAmount = statusCounts
+            .filter(s => s.status === 'APPROVED' || s.status === 'REIMBURSED')
+            .reduce((sum, s) => sum + (s._sum.amount || 0), 0);
 
         const totalUsers = await prisma.user.count();
         const totalTrips = await prisma.trip.count();
@@ -72,7 +89,7 @@ router.get('/dashboard', requireAdmin, async (req, res, next) => {
                 totalUsers,
                 totalTrips,
                 totalExpenses: statusCounts.reduce((sum, s) => sum + s._count.id, 0),
-                totalAmount: statusCounts.reduce((sum, s) => sum + (s._sum.amount || 0), 0),
+                totalAmount: totalApprovedAmount,
             },
             byStatus: statusCounts.map(s => ({
                 status: s.status,
@@ -80,8 +97,9 @@ router.get('/dashboard', requireAdmin, async (req, res, next) => {
                 amount: s._sum.amount || 0,
             })),
             monthly: {
-                count: monthlyExpenses._count.id,
-                amount: monthlyExpenses._sum.amount || 0,
+                count: monthlyTotalExpenses._count.id,
+                amount: monthlyApprovedExpenses._sum.amount || 0,
+                approvedCount: monthlyApprovedExpenses._count.id,
             },
             blockchain: {
                 connected: blockchainConnected,

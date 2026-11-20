@@ -2,11 +2,16 @@
  * SettingsPage.jsx — Cài đặt tài khoản
  */
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
 import { userAPI, getAssetUrl } from '../../api/client.js';
-import { User, Mail, Briefcase, Building2, Wallet, Shield, Camera, Edit2, Check } from 'lucide-react';
+import { getAddressUrl, VVND_TOKEN_ADDRESS } from '../../utils/explorer.js';
+import {
+    Briefcase, Building2, Wallet, Shield, Camera, Edit2, Check,
+    ExternalLink, Copy, CheckCircle2, AlertCircle, Link2, Loader2,
+    RefreshCw, X, HelpCircle, PlusCircle
+} from 'lucide-react';
 
 const ROLE_LABELS = {
     ADMIN: 'Giám đốc / Quản trị viên',
@@ -28,14 +33,137 @@ export default function SettingsPage() {
     const [depts, setDepts] = useState([]);
     const [policyLimits, setPolicyLimits] = useState(null);
 
+    // Web3 Wallet state
+    const [walletStatus, setWalletStatus] = useState(null);
+    const [loadingWalletStatus, setLoadingWalletStatus] = useState(false);
+    const [linkingWallet, setLinkingWallet] = useState(false);
+    const [copiedAddress, setCopiedAddress] = useState(false);
+    const [showNoMetaMaskModal, setShowNoMetaMaskModal] = useState(false);
+
+    const fetchWalletStatus = useCallback(() => {
+        setLoadingWalletStatus(true);
+        userAPI.walletStatus()
+            .then(res => {
+                if (res.success && res.data) {
+                    setWalletStatus(res.data);
+                }
+            })
+            .catch(err => {
+                console.warn('Lỗi kiểm tra ví on-chain:', err.message);
+            })
+            .finally(() => {
+                setLoadingWalletStatus(false);
+            });
+    }, []);
+
     useEffect(() => {
         userAPI.departments().then(res => setDepts(res.data)).catch(console.error);
         userAPI.policyLimits().then(res => setPolicyLimits(res.data)).catch(console.error);
-    }, []);
+        fetchWalletStatus();
+    }, [fetchWalletStatus]);
+
+    const handleCopyAddress = (addr) => {
+        if (!addr) return;
+        navigator.clipboard.writeText(addr);
+        setCopiedAddress(true);
+        toast('Đã sao chép địa chỉ ví!', 'success');
+        setTimeout(() => setCopiedAddress(false), 2000);
+    };
+
+    const handleConnectWallet = async () => {
+        if (typeof window === 'undefined' || !window.ethereum) {
+            setShowNoMetaMaskModal(true);
+            return;
+        }
+
+        setLinkingWallet(true);
+        try {
+            // 1. Yêu cầu MetaMask hiển thị bảng chọn tài khoản (cho phép chọn Account 1, Account 2...)
+            let selectedAddress = null;
+            try {
+                // Buộc MetaMask mở popup chọn tài khoản (EIP-2255)
+                await window.ethereum.request({
+                    method: 'wallet_requestPermissions',
+                    params: [{ eth_accounts: {} }],
+                });
+                const accs = await window.ethereum.request({ method: 'eth_accounts' });
+                if (accs && accs.length > 0) selectedAddress = accs[0];
+            } catch (permErr) {
+                if (permErr.code === 4001) throw permErr; // Người dùng từ chối
+                // Fallback nếu ví không hỗ trợ requestPermissions
+                const accs = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                if (accs && accs.length > 0) selectedAddress = accs[0];
+            }
+
+            if (!selectedAddress) {
+                throw new Error('Không có tài khoản nào được chọn trong ví MetaMask.');
+            }
+
+            // 2. Lấy Challenge Nonce từ Server
+            const nonceRes = await userAPI.getWalletNonce(selectedAddress);
+            if (!nonceRes.success || !nonceRes.data) {
+                throw new Error('Không thể tạo mã xác thực từ máy chủ.');
+            }
+            const { message } = nonceRes.data;
+
+            // 3. Yêu cầu ký chữ ký số mật mã EIP-191 (personal_sign)
+            const signature = await window.ethereum.request({
+                method: 'personal_sign',
+                params: [message, selectedAddress],
+            });
+
+            // 4. Gửi chữ ký lên server để xác thực và liên kết
+            const linkRes = await userAPI.linkWallet({
+                address: selectedAddress,
+                signature,
+                message,
+            });
+
+            if (linkRes.success && linkRes.data) {
+                if (updateUser) updateUser(linkRes.data);
+                fetchWalletStatus();
+                toast('Liên kết ví MetaMask thành công! Chữ ký mật mã đã được xác thực an toàn.', 'success');
+            }
+        } catch (err) {
+            if (err.code === 4001) {
+                toast('Bạn đã hủy yêu cầu ký xác thực trên MetaMask.', 'warning');
+            } else {
+                toast(err.message || 'Lỗi khi liên kết ví', 'error');
+            }
+        } finally {
+            setLinkingWallet(false);
+        }
+    };
 
     const formatLimit = (val) => {
         if (!val && val !== 0) return 'Không giới hạn';
         return Number(val).toLocaleString('vi-VN') + 'đ';
+    };
+
+    const handleAddTokenToMetaMask = async () => {
+        if (typeof window === 'undefined' || !window.ethereum) {
+            toast('Không tìm thấy tiện ích MetaMask trên trình duyệt.', 'warning');
+            return;
+        }
+        try {
+            const added = await window.ethereum.request({
+                method: 'wallet_watchAsset',
+                params: {
+                    type: 'ERC20',
+                    options: {
+                        address: VVND_TOKEN_ADDRESS,
+                        symbol: 'vVND',
+                        decimals: 0,
+                    },
+                },
+            });
+            if (added) {
+                toast('Đã thêm token vVND vào ví MetaMask thành công!', 'success');
+            }
+        } catch (err) {
+            console.warn('Lỗi thêm token vVND vào MetaMask:', err);
+            toast('Lỗi khi thêm token vào MetaMask: ' + (err.message || 'Lỗi không xác định'), 'error');
+        }
     };
 
     if (!user) return null;
@@ -206,6 +334,149 @@ export default function SettingsPage() {
                 </div>
             </div>
 
+            {/* Ví Web3 & Hoàn ứng */}
+            <div className="card" style={{ marginBottom: 24 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                    <h3 style={{ fontSize: 16, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
+                        <Wallet size={18} /> Ví Web3 nhận tiền hoàn ứng
+                    </h3>
+                    <button
+                        type="button"
+                        className="btn btn-sm btn-secondary"
+                        onClick={fetchWalletStatus}
+                        disabled={loadingWalletStatus}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                        title="Kiểm tra trạng thái ví trên blockchain"
+                    >
+                        <RefreshCw size={13} className={loadingWalletStatus ? 'spin' : ''} />
+                        {loadingWalletStatus ? 'Đang kiểm tra...' : 'Kiểm tra on-chain'}
+                    </button>
+                </div>
+
+                <div style={{ background: 'var(--color-bg-secondary, #f8fafc)', borderRadius: 8, padding: '16px 20px', border: '1px solid var(--color-border)', marginBottom: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+                        <div style={{ flex: 1, minWidth: 280 }}>
+                            <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span>Địa chỉ ví đang kích hoạt:</span>
+                                {user.walletAddress && (
+                                    <span className="badge badge-success" style={{ fontSize: 10, padding: '2px 8px' }}>
+                                        ✓ Đang kích hoạt
+                                    </span>
+                                )}
+                            </div>
+                            <div style={{
+                                fontFamily: 'monospace',
+                                fontSize: 13,
+                                fontWeight: 600,
+                                wordBreak: 'break-all',
+                                color: 'var(--color-text)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                background: 'var(--color-surface, #ffffff)',
+                                padding: '10px 14px',
+                                borderRadius: 6,
+                                border: '1px solid var(--color-border)',
+                            }}>
+                                <span style={{ flex: 1 }}>{user.walletAddress || 'Chưa liên kết ví'}</span>
+                                {user.walletAddress && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto', flexShrink: 0 }}>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleCopyAddress(user.walletAddress)}
+                                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: copiedAddress ? 'var(--color-success)' : 'var(--color-text-muted)' }}
+                                            title="Sao chép địa chỉ ví"
+                                        >
+                                            {copiedAddress ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
+                                        </button>
+                                        <a
+                                            href={getAddressUrl(user.walletAddress)}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            style={{ color: 'var(--color-text-muted)', padding: 4, display: 'inline-flex' }}
+                                            title="Xem ví trên Block Explorer"
+                                        >
+                                            <ExternalLink size={14} />
+                                        </a>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* On-chain balance & registration info */}
+                        <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' }}>
+                            <div>
+                                <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Số dư token vVND</div>
+                                <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--color-primary)' }}>
+                                    {walletStatus?.balance !== undefined
+                                        ? `${Number(walletStatus.balance).toLocaleString('vi-VN')} vVND`
+                                        : '0 vVND'}
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={handleAddTokenToMetaMask}
+                                    style={{
+                                        background: 'none',
+                                        border: '1px solid var(--color-border)',
+                                        borderRadius: 4,
+                                        padding: '2px 8px',
+                                        fontSize: 11,
+                                        color: 'var(--color-primary)',
+                                        cursor: 'pointer',
+                                        marginTop: 4,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: 4
+                                    }}
+                                    title="Thêm token vVND vào ví MetaMask để hiển thị số dư trực tiếp trong ví"
+                                >
+                                    <PlusCircle size={11} /> Thêm vVND vào MetaMask
+                                </button>
+                            </div>
+                            <div>
+                                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 2 }}>Trạng thái Smart Contract</div>
+                                <div>
+                                    {walletStatus?.isRegisteredOnChain ? (
+                                        <span className="badge badge-success" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
+                                            <CheckCircle2 size={12} /> Đã cấp quyền hoàn ứng
+                                        </span>
+                                    ) : (
+                                        <span className="badge badge-warning" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
+                                            <AlertCircle size={12} /> Đang cập nhật on-chain
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
+                    <p style={{ fontSize: 13, color: 'var(--color-text-muted)', margin: 0, maxWidth: 540, lineHeight: 1.5 }}>
+                        Hệ thống bảo đảm <strong>Zero Private-Key Leakage</strong>: Người dùng không cần gửi Private Key. Quá trình liên kết sử dụng chữ ký mật mã (EIP-191) để chứng minh quyền sở hữu an toàn tuyệt đối.
+                    </p>
+                    <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={handleConnectWallet}
+                        disabled={linkingWallet}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+                    >
+                        {linkingWallet ? (
+                            <>
+                                <Loader2 size={15} className="spin" />
+                                <span>Đang ký xác thực...</span>
+                            </>
+                        ) : (
+                            <>
+                                <Link2 size={15} />
+                                <span>{user.walletAddress ? 'Đổi sang ví MetaMask khác' : 'Liên kết ví MetaMask'}</span>
+                            </>
+                        )}
+                    </button>
+                </div>
+            </div>
+
             {/* Policy limits */}
             <div className="card" style={{ marginBottom: 24 }}>
                 <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -266,10 +537,74 @@ export default function SettingsPage() {
                 <div className="detail-grid">
                     <InfoRow label="Phiên bản" value="FlexiTrip v1.0.0" />
                     <InfoRow label="AI Engine" value="Google Gemini Vision 2.0" />
-                    <InfoRow label="Blockchain" value="Ethereum (Sepolia Testnet)" />
+                    <InfoRow label="Blockchain" value="Linea Sepolia (Layer 2 zkEVM)" />
                     <InfoRow label="Smart Contract" value="ExpenseManager + MockVND" />
                 </div>
             </div>
+
+            {/* Modal hướng dẫn khi chưa có tiện ích MetaMask */}
+            {showNoMetaMaskModal && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(0, 0, 0, 0.45)',
+                        backdropFilter: 'blur(4px)',
+                        zIndex: 9999,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 20,
+                    }}
+                    onClick={() => setShowNoMetaMaskModal(false)}
+                >
+                    <div
+                        className="card"
+                        style={{ maxWidth: 500, width: '100%', margin: 0, boxShadow: 'var(--shadow-lg)' }}
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                            <h3 style={{ fontSize: 17, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <HelpCircle size={20} color="var(--color-primary)" /> Chưa cài đặt ví Web3
+                            </h3>
+                            <button
+                                onClick={() => setShowNoMetaMaskModal(false)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', padding: 4 }}
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <div style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--color-text)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            <p style={{ margin: 0 }}>
+                                Trình duyệt của bạn chưa cài đặt tiện ích mở rộng ví Web3 (ví dụ: <strong>MetaMask</strong>).
+                            </p>
+                            <div style={{ background: 'var(--color-bg-secondary, #f8fafc)', padding: '12px 14px', borderRadius: 8, border: '1px solid var(--color-border)', fontSize: 13 }}>
+                                <strong style={{ color: 'var(--color-primary)' }}>💡 Bạn không bắt buộc phải cài đặt ví MetaMask:</strong>
+                                <p style={{ margin: '6px 0 0 0', color: 'var(--color-text-muted)' }}>
+                                    FlexiTrip áp dụng mô hình <strong>Ví nội bộ (Embedded Wallet)</strong> cấp phát sẵn cho bạn. Tiền hoàn ứng chi phí công tác vẫn được chuyển và ghi nhận an toàn 100% vào tài khoản của bạn.
+                                </p>
+                            </div>
+                            <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-muted)' }}>
+                                Nếu muốn tự quản lý token <strong>vVND</strong> và rút về tài khoản ngân hàng hoặc ví cá nhân, bạn có thể tải MetaMask cho Chrome / Edge / Brave.
+                            </p>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 22 }}>
+                            <a
+                                href="https://metamask.io/download/"
+                                target="_blank"
+                                rel="noreferrer"
+                                className="btn btn-secondary"
+                                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                            >
+                                <ExternalLink size={14} /> Tải MetaMask
+                            </a>
+                            <button className="btn btn-primary" onClick={() => setShowNoMetaMaskModal(false)}>
+                                Đã hiểu
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

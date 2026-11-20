@@ -5,6 +5,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
 import { authenticate } from '../middleware/auth.js';
 import { registerEmployeeOnChain, isBlockchainReady } from '../services/blockchain/blockchainService.js';
@@ -179,6 +180,134 @@ router.post('/login', async (req, res, next) => {
         }
 
         // Tạo JWT (24h)
+        const token = jwt.sign(
+            { id: user.id, email: user.email, role: user.role },
+            process.env.JWT_SECRET,
+            { expiresIn: '24h' }
+        );
+
+        res.json({
+            success: true,
+            data: {
+                token,
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    name: user.name,
+                    role: user.role,
+                    department: user.department?.name,
+                    departmentId: user.departmentId,
+                    departmentSelfSelected: user.departmentSelfSelected,
+                    walletAddress: user.walletAddress,
+                    avatarUrl: user.avatarUrl,
+                },
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * POST /api/auth/google — Đăng nhập bằng Google Identity / OAuth 2.0
+ * Hỗ trợ tài khoản trường @vku.udn.vn và doanh nghiệp @company.vn
+ */
+router.post('/google', async (req, res, next) => {
+    try {
+        const { credential, email: demoEmail, name: demoName, picture: demoPicture } = req.body;
+
+        let email = null;
+        let name = null;
+        let picture = null;
+
+        // 1. Phân tích token Google nếu có
+        if (credential) {
+            try {
+                const parts = credential.split('.');
+                if (parts.length === 3) {
+                    const payloadJson = Buffer.from(parts[1], 'base64').toString('utf8');
+                    const payload = JSON.parse(payloadJson);
+                    email = payload.email;
+                    name = payload.name;
+                    picture = payload.picture;
+                }
+            } catch {
+                return res.status(400).json({ success: false, error: 'Token Google không hợp lệ' });
+            }
+        } else if (demoEmail) {
+            // Hỗ trợ chế độ demo xác thực tài khoản trường @vku.udn.vn
+            email = demoEmail;
+            name = demoName || demoEmail.split('@')[0];
+            picture = demoPicture || null;
+        }
+
+        if (!email) {
+            return res.status(400).json({ success: false, error: 'Thiếu thông tin email từ Google' });
+        }
+
+        email = email.toLowerCase().trim();
+
+        // 2. Kiểm tra Whitelist domain được phép truy cập
+        // Mặc định: @vku.udn.vn và @company.vn
+        const allowedDomains = (process.env.ALLOWED_EMAIL_DOMAINS || 'vku.udn.vn,company.vn')
+            .split(',')
+            .map(d => d.trim().toLowerCase());
+
+        const emailDomain = email.split('@')[1];
+        if (!emailDomain || !allowedDomains.includes(emailDomain)) {
+            return res.status(403).json({
+                success: false,
+                error: `Tài khoản ${email} không thuộc tổ chức được phép truy cập. Hệ thống chỉ cho phép các domain: @${allowedDomains.join(', @')}`,
+            });
+        }
+
+        // 3. Tìm hoặc tự động tạo tài khoản (Auto-provisioning)
+        let user = await prisma.user.findUnique({
+            where: { email },
+            include: { department: { select: { id: true, name: true } } },
+        });
+
+        if (!user) {
+            // Lấy phòng ban đầu tiên để gán mặc định
+            const defaultDept = await prisma.department.findFirst({
+                orderBy: { createdAt: 'asc' },
+            });
+
+            // Tự động sinh ví nội bộ ban đầu
+            const walletAddress = ethers.Wallet.createRandom().address;
+            const dummyPassword = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
+
+            user = await prisma.user.create({
+                data: {
+                    email,
+                    name: name || email.split('@')[0],
+                    password: dummyPassword,
+                    role: 'EMPLOYEE',
+                    departmentId: defaultDept ? defaultDept.id : null,
+                    walletAddress,
+                    avatarUrl: picture,
+                    wallet: {
+                        create: { address: walletAddress, balance: 0 },
+                    },
+                },
+                include: { department: { select: { id: true, name: true } } },
+            });
+
+            // Đăng ký nhân viên trên Smart Contract nếu blockchain sẵn sàng
+            if (isBlockchainReady()) {
+                try {
+                    await registerEmployeeOnChain(walletAddress, 'EMPLOYEE');
+                } catch (bcErr) {
+                    console.warn('⚠️ Blockchain register for Google user failed:', bcErr.message);
+                }
+            }
+        }
+
+        if (user.isLocked) {
+            return res.status(403).json({ success: false, error: 'Tài khoản đang bị khóa. Vui lòng liên hệ Admin.' });
+        }
+
+        // 4. Sinh JWT token của FlexiTrip (24h)
         const token = jwt.sign(
             { id: user.id, email: user.email, role: user.role },
             process.env.JWT_SECRET,

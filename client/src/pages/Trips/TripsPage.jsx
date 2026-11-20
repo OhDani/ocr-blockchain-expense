@@ -221,6 +221,8 @@ export default function TripsPage() {
     const totalActivities = tripDetail?.activities?.length || 0;
 
     const isOwner = tripDetail?.userId === currentUser?.id;
+    const isManagerOfTrip = isManager && deptEmployees.some(e => e.id === tripDetail?.userId);
+    const canManageTrip = isOwner || currentUser?.role === 'ADMIN' || isManagerOfTrip;
 
     return (
         <div>
@@ -461,7 +463,7 @@ export default function TripsPage() {
                                         <div className="detail-row">
                                             <div className="detail-row__label"><Calendar size={14} /> Trạng thái</div>
                                             <div className="detail-row__value">
-                                                {isOwner ? (
+                                                {canManageTrip ? (
                                                     <select className="form-input" value={tripDetail.status}
                                                         onChange={(e) => handleStatusChange(tripDetail.id, e.target.value)}
                                                         style={{ padding: '6px 10px', fontSize: 13, width: 'auto', minWidth: 160 }}
@@ -515,7 +517,7 @@ export default function TripsPage() {
                                         )}
 
                                         {/* Add button */}
-                                        {isOwner && (
+                                        {canManageTrip && (
                                             <div style={{ marginBottom: 16 }}>
                                                 {!showActivityForm ? (
                                                     <button className="btn btn-primary btn-sm" onClick={() => {
@@ -612,7 +614,7 @@ export default function TripsPage() {
                                                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                                                             <div style={{ display: 'flex', gap: 10, flex: 1 }}>
                                                                                 {/* Checkbox */}
-                                                                                {isOwner && (
+                                                                                {canManageTrip && (
                                                                                     <button onClick={() => handleToggleComplete(act)}
                                                                                         style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', marginTop: 1, flexShrink: 0 }}
                                                                                         title={act.completed ? 'Đánh dấu chưa xong' : 'Đánh dấu hoàn thành'}
@@ -657,7 +659,7 @@ export default function TripsPage() {
                                                                                     )}
                                                                                 </div>
                                                                             </div>
-                                                                            {isOwner && (
+                                                                            {canManageTrip && (
                                                                                 <button onClick={() => handleDeleteActivity(act.id)}
                                                                                     style={{
                                                                                         border: 'none', background: 'rgba(239,68,68,0.08)',

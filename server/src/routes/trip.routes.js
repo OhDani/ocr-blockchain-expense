@@ -140,6 +140,34 @@ router.get('/:id', async (req, res, next) => {
 });
 
 /**
+ * Kiểm tra quyền quản lý chuyến công tác:
+ * - Chủ nhân chuyến (Employee / Creator)
+ * - Admin (toàn quyền hệ thống)
+ * - Trưởng phòng (Manager nếu nhân viên thuộc cùng phòng ban)
+ */
+async function canManageTrip(tripId, reqUser) {
+    const trip = await prisma.trip.findUnique({
+        where: { id: tripId },
+        include: { user: { select: { id: true, departmentId: true } } },
+    });
+    if (!trip) return { allowed: false, trip: null, notFound: true };
+
+    if (trip.userId === reqUser.id) return { allowed: true, trip };
+    if (reqUser.role === 'ADMIN') return { allowed: true, trip };
+    if (reqUser.role === 'MANAGER') {
+        const manager = await prisma.user.findUnique({
+            where: { id: reqUser.id },
+            select: { departmentId: true },
+        });
+        if (manager?.departmentId && manager.departmentId === trip.user?.departmentId) {
+            return { allowed: true, trip };
+        }
+    }
+
+    return { allowed: false, trip };
+}
+
+/**
  * PATCH /api/trips/:id — Cập nhật trạng thái chuyến công tác
  */
 router.patch('/:id', async (req, res, next) => {
@@ -151,12 +179,15 @@ router.patch('/:id', async (req, res, next) => {
             return res.status(400).json({ success: false, error: 'Status không hợp lệ' });
         }
 
-        const trip = await prisma.trip.findUnique({ where: { id: req.params.id } });
-        if (!trip) {
+        const { allowed, notFound } = await canManageTrip(req.params.id, req.user);
+        if (notFound) {
             return res.status(404).json({ success: false, error: 'Không tìm thấy chuyến công tác' });
         }
-        if (trip.userId !== req.user.id) {
-            return res.status(403).json({ success: false, error: 'Chỉ người tạo chuyến mới được đổi trạng thái' });
+        if (!allowed) {
+            return res.status(403).json({
+                success: false,
+                error: 'Bạn không có quyền thay đổi trạng thái chuyến công tác này (chỉ chủ chuyến, Trưởng phòng bộ phận hoặc Admin mới được phép)',
+            });
         }
 
         const updated = await prisma.trip.update({
@@ -183,21 +214,15 @@ router.post('/:id/activities', async (req, res, next) => {
             return res.status(400).json({ success: false, error: 'Cần nhập ngày và tiêu đề' });
         }
 
-        const trip = await prisma.trip.findUnique({ where: { id: req.params.id } });
-        if (!trip) {
+        const { allowed, notFound } = await canManageTrip(req.params.id, req.user);
+        if (notFound) {
             return res.status(404).json({ success: false, error: 'Không tìm thấy chuyến công tác' });
         }
-        if (trip.userId !== req.user.id) {
-            // Manager có thể thêm kế hoạch cho chuyến của employee phòng mình
-            if (req.user.role === 'MANAGER') {
-                const manager = await prisma.user.findUnique({ where: { id: req.user.id } });
-                const tripOwner = await prisma.user.findUnique({ where: { id: trip.userId } });
-                if (!manager?.departmentId || manager.departmentId !== tripOwner?.departmentId) {
-                    return res.status(403).json({ success: false, error: 'Chỉ thêm kế hoạch cho chuyến trong phòng ban' });
-                }
-            } else if (req.user.role !== 'ADMIN') {
-                return res.status(403).json({ success: false, error: 'Chỉ người tạo chuyến mới được thêm kế hoạch' });
-            }
+        if (!allowed) {
+            return res.status(403).json({
+                success: false,
+                error: 'Chỉ người tạo chuyến, Trưởng phòng bộ phận hoặc Admin mới được thêm kế hoạch',
+            });
         }
 
         const activity = await prisma.tripActivity.create({
@@ -226,9 +251,9 @@ router.patch('/:tripId/activities/:actId', async (req, res, next) => {
     try {
         const { date, time, title, description, location, type, completed, estimatedCost } = req.body;
 
-        const trip = await prisma.trip.findUnique({ where: { id: req.params.tripId } });
-        if (!trip || trip.userId !== req.user.id) {
-            return res.status(403).json({ success: false, error: 'Không có quyền' });
+        const { allowed, notFound } = await canManageTrip(req.params.tripId, req.user);
+        if (notFound || !allowed) {
+            return res.status(403).json({ success: false, error: 'Không có quyền sửa hoạt động này' });
         }
 
         const data = {};
@@ -257,9 +282,9 @@ router.patch('/:tripId/activities/:actId', async (req, res, next) => {
  */
 router.delete('/:tripId/activities/:actId', async (req, res, next) => {
     try {
-        const trip = await prisma.trip.findUnique({ where: { id: req.params.tripId } });
-        if (!trip || trip.userId !== req.user.id) {
-            return res.status(403).json({ success: false, error: 'Không có quyền' });
+        const { allowed, notFound } = await canManageTrip(req.params.tripId, req.user);
+        if (notFound || !allowed) {
+            return res.status(403).json({ success: false, error: 'Không có quyền xóa hoạt động này' });
         }
 
         await prisma.tripActivity.delete({ where: { id: req.params.actId } });

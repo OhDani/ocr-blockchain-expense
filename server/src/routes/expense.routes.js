@@ -530,7 +530,7 @@ router.patch('/:id/approve', requireAdmin, async (req, res, next) => {
             try {
                 const employeeWallet = expense.user?.walletAddress;
                 if (!employeeWallet) {
-                    throw new Error('Nhân viên chưa có wallet address. Vui lòng cập nhật trong phần quản lý user.');
+                    throw new Error('Nhân viên này chưa liên kết ví blockchain. Nhân viên cần vào mục Cài đặt -> Ví Web3 để liên kết ví MetaMask (hoặc Admin gán ví trong Quản lý người dùng) trước khi giải ngân.');
                 }
 
                 console.log(`🔗 Blockchain: submitting expense ${expense.id} (${expense.amount}đ) cho ${employeeWallet}...`);

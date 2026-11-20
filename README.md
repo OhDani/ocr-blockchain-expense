@@ -52,7 +52,7 @@ FlexiTrip giải quyết bài toán quản lý chi phí công tác doanh nghiệ
 | **Backend** | Express 5, Prisma ORM, JWT Auth, Multer |
 | **Database** | PostgreSQL (Supabase) |
 | **AI OCR** | Google Gemini Vision API (gemini-2.0-flash) |
-| **Blockchain** | Solidity, Ethers.js v6, Sepolia Testnet |
+| **Blockchain** | Solidity 0.8.20, Ethers.js v6, Linea Sepolia (L2 zkEVM) |
 | **Design** | Glassmorphism, Inter font, Responsive |
 
 ## Cài Đặt
@@ -92,14 +92,14 @@ JWT_SECRET="your-secret-key"
 # Gemini AI OCR
 GEMINI_API_KEY="your_gemini_api_key"
 
-# Blockchain (Sepolia Testnet)
+# Blockchain (Linea Sepolia L2)
 ADMIN_PRIVATE_KEY="your_private_key"
-BLOCKCHAIN_RPC_URL="https://ethereum-sepolia-rpc.publicnode.com"
+BLOCKCHAIN_RPC_URL="https://rpc.sepolia.linea.build"
 ```
 
 Sửa `contracts/.env`:
 ```env
-SEPOLIA_URL="https://ethereum-sepolia-rpc.publicnode.com"
+LINEA_SEPOLIA_URL="https://rpc.sepolia.linea.build"
 PRIVATE_KEY="your_private_key_here"
 ```
 
@@ -111,23 +111,22 @@ npx prisma db push
 npx prisma db seed
 ```
 
-### 4. Deploy Smart Contracts lên Sepolia
+### 4. Deploy Smart Contracts lên Linea Sepolia
 
 ```bash
-npm run contracts:deploy:sepolia
+npm run contracts:deploy:linea
 ```
 
 Script sẽ tự động cập nhật `server/.env` với địa chỉ contract mới.
 
-### Lấy SepoliaETH
+### Lấy LineaETH (Testnet)
 
-Smart contract deploy lên Sepolia cần SepoliaETH (gas fee). Lấy miễn phí tại:
+Smart contract deploy lên Linea Sepolia cần LineaETH (phí gas cực rẻ trên L2). Lấy miễn phí tại:
 
-- [Google Cloud Sepolia Faucet](https://cloud.google.com/application/web3/faucet/ethereum/sepolia)
-- [Alchemy Sepolia Faucet](https://sepoliafaucet.com/)
-- [Infura Sepolia Faucet](https://www.infura.io/faucet/sepolia)
+- [Infura Linea Sepolia Faucet](https://www.infura.io/faucet/linea)
+- [Linea Faucet](https://faucet.linea.build/)
 
-Cần khoảng **0.05 SepoliaETH** để deploy + chạy vài giao dịch.
+Chỉ cần khoảng **0.003 LineaETH** là đủ deploy và chạy hàng trăm giao dịch hoàn ứng.
 
 ## Chạy Ứng Dụng
 
@@ -198,9 +197,9 @@ Lần đầu triển khai (DB trống), truy cập web sẽ tự động hiện 
 💾 Lưu vào PostgreSQL
    │
    ▼
-⛓️ Ghi lên Blockchain Sepolia (submitExpense)
+⛓️ Ghi lên Blockchain Linea Sepolia (submitExpense)
    │  → Trả về txHash + onChainExpenseId
-   │  → Verify trên Etherscan Sepolia
+   │  → Verify trên Lineascan Sepolia
    │
    ▼
 ⏳ Chờ Admin duyệt
@@ -230,10 +229,10 @@ ocr-blockchain-expense/
 │       ├── services/          # ocrService, policyService, blockchainService
 │       └── middleware/        # auth JWT middleware
 │
-└── contracts/                 # Solidity + Hardhat
+└── contracts/                 # Solidity + Foundry Tooling
     ├── contracts/             # MockVND.sol, ExpenseManager.sol
-    ├── test/                  # 30 test cases
-    └── scripts/               # deploy.js, deploy-sepolia.js
+    ├── test/                  # ExpenseManager.t.sol (Unit & Fuzz tests)
+    └── script/                # Deploy.s.sol (Foundry Deploy Script)
 ```
 
 ## Smart Contracts
@@ -248,14 +247,14 @@ ocr-blockchain-expense/
 - `_reimburse()` — Tự động chuyển vVND từ quỹ công ty → ví nhân viên
 - Policy on-chain: hạn mức theo cấp bậc (EMPLOYEE / MANAGER / ADMIN)
 
-### Deploy & Test
+### Deploy & Test (Foundry)
 ```bash
-# Test
+# Chạy Unit Test & Fuzz Test bằng Solidity
 cd contracts
-npx hardhat test   # 30 passing ✅
+forge test -vvv
 
-# Deploy lên Sepolia
-npm run contracts:deploy:sepolia
+# Deploy lên Linea Sepolia (L2) qua Foundry Script
+forge script script/Deploy.s.sol:DeployScript --rpc-url https://rpc.sepolia.linea.build --broadcast
 ```
 
 ## API Endpoints

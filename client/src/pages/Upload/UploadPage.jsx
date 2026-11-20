@@ -8,9 +8,11 @@ import {
     Upload, FileImage, RefreshCw, Rocket, CheckCircle,
     ClipboardCheck, Bot, Link2, AlertTriangle, XCircle,
     Store, Hash, Calendar, Receipt, CreditCard, FileText,
-    PenLine,
+    PenLine, Zap,
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext.jsx';
+import { compressImage, formatFileSize } from '../../utils/imageCompressor.js';
+import { getTxUrl } from '../../utils/explorer.js';
 import './UploadPage.css';
 
 export default function UploadPage() {
@@ -19,6 +21,8 @@ export default function UploadPage() {
     const [tripId, setTripId] = useState('');
     const [trips, setTrips] = useState([]);
     const [uploading, setUploading] = useState(false);
+    const [compressing, setCompressing] = useState(false);
+    const [compressionInfo, setCompressionInfo] = useState(null);
     const [result, setResult] = useState(null);
     const [error, setError] = useState('');
     const [dragActive, setDragActive] = useState(false);
@@ -37,21 +41,42 @@ export default function UploadPage() {
         tripAPI.list().then((res) => setTrips(res.data)).catch(() => { });
     }, []);
 
-    const handleFile = (f) => {
+    const handleFile = async (f) => {
         if (!f) return;
         const allowed = ['image/jpeg', 'image/png', 'image/webp'];
         if (!allowed.includes(f.type)) {
             setError('Chỉ hỗ trợ ảnh JPG, PNG, WEBP');
             return;
         }
-        if (f.size > 5 * 1024 * 1024) {
-            setError('File quá lớn (tối đa 5MB)');
+        if (f.size > 20 * 1024 * 1024) {
+            setError('File quá lớn (tối đa 20MB)');
             return;
         }
-        setFile(f);
-        setPreview(URL.createObjectURL(f));
+
         setError('');
         setResult(null);
+        setCompressing(true);
+
+        try {
+            const { file: optimizedFile, originalSize, compressedSize, isCompressed } = await compressImage(f);
+            setFile(optimizedFile);
+            setPreview(URL.createObjectURL(optimizedFile));
+            if (isCompressed) {
+                setCompressionInfo({
+                    original: formatFileSize(originalSize),
+                    compressed: formatFileSize(compressedSize),
+                    percent: Math.round(((originalSize - compressedSize) / originalSize) * 100),
+                });
+            } else {
+                setCompressionInfo(null);
+            }
+        } catch {
+            setFile(f);
+            setPreview(URL.createObjectURL(f));
+            setCompressionInfo(null);
+        } finally {
+            setCompressing(false);
+        }
     };
 
     const handleDrop = (e) => {
@@ -85,10 +110,11 @@ export default function UploadPage() {
     const resetForm = () => {
         setFile(null);
         setPreview(null);
-        setResult(null);
+        setCompressionInfo(null);
         setError('');
         setTripId('');
         setUserNote('');
+        if (inputRef.current) inputRef.current.value = '';
     };
 
     const formatMoney = (val) => {
@@ -257,6 +283,25 @@ export default function UploadPage() {
                                 {preview ? (
                                     <div className="upload-preview">
                                         <img src={preview} alt="Hóa đơn" />
+                                        {compressionInfo && (
+                                            <div style={{ position: 'absolute', bottom: 12, left: 12, zIndex: 2 }}>
+                                                <span style={{
+                                                    fontSize: 11,
+                                                    background: 'rgba(15, 23, 42, 0.8)',
+                                                    backdropFilter: 'blur(4px)',
+                                                    color: '#34d399',
+                                                    padding: '4px 10px',
+                                                    borderRadius: 6,
+                                                    fontWeight: 600,
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: 4,
+                                                    boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+                                                }}>
+                                                    <Zap size={12} /> Đã tối ưu Full HD: {compressionInfo.original} ➔ {compressionInfo.compressed} (-{compressionInfo.percent}%)
+                                                </span>
+                                            </div>
+                                        )}
                                         <button className="btn btn-secondary btn-sm upload-change" onClick={(e) => { e.stopPropagation(); resetForm(); }}>
                                             <RefreshCw size={14} /> Đổi ảnh
                                         </button>
@@ -270,7 +315,7 @@ export default function UploadPage() {
                                             Kéo thả ảnh hóa đơn vào đây
                                         </p>
                                         <p className="upload-placeholder__sub">
-                                            hoặc bấm để chọn file (JPG, PNG, WEBP — tối đa 5MB)
+                                            hoặc bấm để chọn file (tự động nén tối ưu Full HD siêu tốc)
                                         </p>
                                     </div>
                                 )}
@@ -480,7 +525,7 @@ export default function UploadPage() {
                                     <div className="result-blockchain__details">
                                         <div className="result-blockchain__row">
                                             <span className="result-blockchain__label">TX Hash</span>
-                                            <a href={`https://sepolia.etherscan.io/tx/${result.blockchain.txHash}`} target="_blank" rel="noopener noreferrer"
+                                            <a href={getTxUrl(result.blockchain.txHash)} target="_blank" rel="noopener noreferrer"
                                                 className="result-blockchain__hash" style={{ color: '#2b9e9e', textDecoration: 'none' }}>
                                                 {result.blockchain.txHash} ↗
                                             </a>

@@ -9,10 +9,11 @@ node_modules/
 dist/
 build/
 
-# Hardhat
+# Hardhat & Foundry
 contracts/cache/
 contracts/artifacts/
 contracts/typechain-types/
+contracts/out/
 
 # Prisma
 server/prisma/migrations/

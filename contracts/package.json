@@ -1,18 +1,12 @@
 {
     "name": "contracts",
     "version": "1.0.0",
-    "description": "FlexiTrip Smart Contracts — Solidity + Hardhat",
+    "description": "FlexiTrip Smart Contracts — Solidity + Foundry Tooling",
     "scripts": {
-        "test": "npx hardhat test",
-        "deploy": "npx hardhat run scripts/deploy.js --network localhost",
-        "node": "npx hardhat node"
-    },
-    "devDependencies": {
-        "@nomicfoundation/hardhat-toolbox": "^5.0.0",
-        "hardhat": "^2.28.6"
+        "test": "forge test -vvv",
+        "deploy:linea": "forge script script/Deploy.s.sol:DeployScript --rpc-url https://rpc.sepolia.linea.build --broadcast"
     },
     "dependencies": {
-        "@openzeppelin/contracts": "^5.6.1",
-        "dotenv": "^17.4.2"
+        "@openzeppelin/contracts": "^5.6.1"
     }
 }
