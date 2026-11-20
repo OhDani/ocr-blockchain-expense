@@ -8,7 +8,7 @@ import { expenseAPI, API_BASE } from '../../api/client.js';
 import {
     X, Bot, ClipboardCheck, Link2, Image as ImageIcon, Store, Hash,
     Calendar, CreditCard, FileText, CheckCircle, XCircle,
-    AlertTriangle, Clock, Loader, ShieldAlert, RotateCcw,
+    AlertTriangle, Clock, Loader, ShieldAlert, RotateCcw, Shield,
 } from 'lucide-react';
 import ImagePreviewModal from '../ImagePreviewModal/ImagePreviewModal.jsx';
 import { getTxUrl } from '../../utils/explorer.js';
@@ -58,7 +58,7 @@ export default function ExpenseDetailModal({ expenseId, onClose }) {
         { id: 'info', label: 'Hóa đơn', icon: FileText },
         { id: 'policy', label: 'Chính sách', icon: ClipboardCheck },
         { id: 'fraud', label: 'Rủi ro', icon: ShieldAlert },
-        { id: 'blockchain', label: 'Blockchain', icon: Link2 },
+        { id: 'blockchain', label: 'Đối soát Blockchain', icon: Link2 },
     ];
 
     return (
@@ -297,40 +297,59 @@ export default function ExpenseDetailModal({ expenseId, onClose }) {
                                     </div>
                                 )}
 
-                                {/* ── Tab: Blockchain ── */}
+                                {/* ── Tab: Đối soát Blockchain ── */}
                                 {activeTab === 'blockchain' && (
                                     <div className="modal-tab-content">
                                         {blockchain?.txHash ? (
                                             <>
                                                 <div className="detail-blockchain-status">
                                                     <CheckCircle size={18} style={{ color: 'var(--color-success)' }} />
-                                                    <span>Đã ghi nhận on-chain</span>
+                                                    <span>Đã xác thực & giải ngân trên Blockchain</span>
                                                 </div>
 
                                                 <div className="detail-grid">
                                                     <div className="detail-row detail-row--full">
                                                         <div className="detail-row__label">
-                                                            <Hash size={14} /> TX Hash
+                                                            <Hash size={14} /> Mã giao dịch (TX Hash)
                                                         </div>
                                                         <div className="detail-row__value detail-row__value--mono">
                                                             <a href={getTxUrl(blockchain.txHash)} target="_blank" rel="noopener noreferrer"
-                                                                style={{ color: '#2b9e9e', textDecoration: 'none' }}>
+                                                                style={{ color: '#2b9e9e', textDecoration: 'none', fontWeight: 600 }}>
                                                                 {blockchain.txHash} ↗
                                                             </a>
                                                         </div>
                                                     </div>
-                                                    <DetailRow icon={Link2} label="On-chain Expense ID" value={blockchain.blockchainId != null ? `#${blockchain.blockchainId}` : '—'} />
-                                                    <DetailRow icon={Hash} label="Invoice Hash" value={expense.invoiceHash} mono />
+                                                    <DetailRow icon={Link2} label="Mã phiếu Smart Contract" value={blockchain.blockchainId != null ? `#${blockchain.blockchainId}` : '—'} />
+                                                    <DetailRow icon={Hash} label="Mã băm hóa đơn (Chống sửa)" value={expense.invoiceHash} mono />
                                                     {blockchain.gasUsed && (
-                                                        <DetailRow icon={CreditCard} label="Gas Used" value={blockchain.gasUsed} />
+                                                        <DetailRow icon={CreditCard} label="Năng lượng mạng (Gas Used)" value={blockchain.gasUsed} />
                                                     )}
+                                                </div>
+
+                                                <div style={{
+                                                    marginTop: 16,
+                                                    padding: '12px 14px',
+                                                    background: 'rgba(43, 158, 158, 0.08)',
+                                                    borderRadius: 8,
+                                                    border: '1px solid rgba(43, 158, 158, 0.2)',
+                                                    fontSize: 12,
+                                                    color: 'var(--color-text)',
+                                                    display: 'flex',
+                                                    gap: 10,
+                                                    alignItems: 'flex-start',
+                                                    lineHeight: 1.5
+                                                }}>
+                                                    <Shield size={16} style={{ color: '#2b9e9e', flexShrink: 0, marginTop: 2 }} />
+                                                    <span>
+                                                        <strong>Chứng thực minh bạch:</strong> Phiếu chi này đã được đối soát vĩnh viễn trên sổ cái phi tập trung <strong>Linea Sepolia (zkEVM Layer 2)</strong>. Dữ liệu và số tiền hoàn ứng không thể bị can thiệp hay sửa đổi bởi bất kỳ ai.
+                                                    </span>
                                                 </div>
                                             </>
                                         ) : blockchain?.status === 'FAILED' ? (
                                             <div style={{ textAlign: 'center', padding: 32 }}>
                                                 <XCircle size={40} style={{ color: 'var(--color-danger)', opacity: 0.7, marginBottom: 12 }} />
                                                 <div style={{ fontWeight: 600, color: 'var(--color-danger)', marginBottom: 8 }}>
-                                                    Ghi blockchain thất bại
+                                                    Ghi nhận Blockchain gặp sự cố
                                                 </div>
                                                 {blockchain.errorMessage && (
                                                     <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 16 }}>
@@ -338,13 +357,16 @@ export default function ExpenseDetailModal({ expenseId, onClose }) {
                                                     </div>
                                                 )}
                                                 <div style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
-                                                    Admin có thể bấm nút "Thử lại" trong danh sách duyệt chi phí.
+                                                    Admin/Kế toán có thể bấm nút "Thử lại hoàn ứng" trong danh sách duyệt chi phí.
                                                 </div>
                                             </div>
                                         ) : (
                                             <div className="empty-state" style={{ padding: 32 }}>
                                                 <div className="empty-state__icon"><Link2 size={40} strokeWidth={1} /></div>
-                                                <div className="empty-state__text">Chưa ghi nhận trên blockchain</div>
+                                                <div className="empty-state__text">Chưa ghi nhận trên Blockchain</div>
+                                                <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 6, maxWidth: 360, textAlign: 'center' }}>
+                                                    Giao dịch Blockchain sẽ tự động được kích hoạt và giải ngân token vVND khi Kế toán duyệt hoàn ứng chi phí này.
+                                                </div>
                                             </div>
                                         )}
                                     </div>

@@ -4,7 +4,7 @@
     min-height: 100svh;
     display: grid;
     place-items: center;
-    padding: 32px 20px;
+    padding: 16px 20px;
     position: relative;
     isolation: isolate;
     overflow: hidden;
@@ -41,13 +41,13 @@
 }
 
 .login-card {
-    width: min(100%, 440px);
-    padding: 44px 46px 42px;
+    width: min(100%, 420px);
+    padding: 28px 36px 26px;
     position: relative;
     z-index: 1;
     overflow: hidden;
     border: 1px solid rgba(255, 255, 255, 0.82);
-    border-radius: 26px;
+    border-radius: 22px;
     background: rgba(255, 255, 255, 0.78);
     box-shadow: 0 28px 80px rgba(26, 58, 92, 0.12), 0 8px 24px rgba(26, 58, 92, 0.06), inset 0 1px 0 #fff;
     backdrop-filter: blur(24px);
@@ -68,28 +68,28 @@
 
 .login-logo {
     text-align: center;
-    margin-bottom: 34px;
+    margin-bottom: 20px;
 }
 
 .login-logo__img {
     display: block;
-    width: 108px;
-    height: 108px;
+    width: 68px;
+    height: 68px;
     object-fit: contain;
-    margin: 0 auto 14px;
+    margin: 0 auto 10px;
     filter: drop-shadow(0 8px 12px rgba(26, 58, 92, 0.12));
 }
 
 .login-logo__text {
     color: var(--color-primary);
-    font-size: 28px;
+    font-size: 24px;
     line-height: 1.2;
     font-weight: 700;
     letter-spacing: -0.045em;
 }
 
 .login-logo__desc {
-    margin-top: 7px;
+    margin-top: 4px;
     color: var(--color-text-muted);
     font-size: 13px;
     letter-spacing: 0.01em;
@@ -98,11 +98,11 @@
 .login-form {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 14px;
 }
 
 .login-form .form-group {
-    gap: 8px;
+    gap: 6px;
 }
 
 .login-form .form-group label {
@@ -112,8 +112,8 @@
 }
 
 .login-form .form-input {
-    min-height: 50px;
-    padding: 12px 15px;
+    min-height: 44px;
+    padding: 10px 14px;
     border-color: rgba(148, 163, 184, 0.32);
     border-radius: 12px;
     background: rgba(248, 250, 252, 0.82);
@@ -131,21 +131,21 @@
 }
 
 .login-error {
-    padding: 11px 14px;
+    padding: 9px 12px;
     border: 1px solid rgba(248, 113, 113, 0.2);
     border-left: 3px solid var(--color-danger);
-    border-radius: 11px;
+    border-radius: 10px;
     background: var(--color-danger-bg);
     color: #991b1b;
-    font-size: 13px;
+    font-size: 12px;
     animation: fadeIn 0.25s ease both;
 }
 
 .login-btn {
     width: 100%;
-    min-height: 50px;
+    min-height: 44px;
     justify-content: center;
-    margin-top: 3px;
+    margin-top: 2px;
     border-radius: 12px;
     font-size: 14px;
     font-weight: 600;
@@ -167,7 +167,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    margin: 18px 0 14px;
+    margin: 14px 0 12px;
     color: var(--color-text-muted);
     font-size: 12px;
 }
@@ -182,7 +182,7 @@
 
 .btn-google-login {
     width: 100%;
-    min-height: 48px;
+    min-height: 44px;
     display: inline-flex;
     align-items: center;
     justify-content: center;

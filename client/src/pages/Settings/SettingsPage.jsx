@@ -10,7 +10,7 @@ import { getAddressUrl, VVND_TOKEN_ADDRESS } from '../../utils/explorer.js';
 import {
     Briefcase, Building2, Wallet, Shield, Camera, Edit2, Check,
     ExternalLink, Copy, CheckCircle2, AlertCircle, Link2, Loader2,
-    RefreshCw, X, HelpCircle, PlusCircle
+    RefreshCw, X, HelpCircle, PlusCircle, BookOpen, Info
 } from 'lucide-react';
 
 const ROLE_LABELS = {
@@ -39,6 +39,8 @@ export default function SettingsPage() {
     const [linkingWallet, setLinkingWallet] = useState(false);
     const [copiedAddress, setCopiedAddress] = useState(false);
     const [showNoMetaMaskModal, setShowNoMetaMaskModal] = useState(false);
+    const [showGuideModal, setShowGuideModal] = useState(false);
+    const [guideTab, setGuideTab] = useState('steps'); // 'steps' | 'no-wallet' | 'faq'
 
     const fetchWalletStatus = useCallback(() => {
         setLoadingWalletStatus(true);
@@ -334,22 +336,68 @@ export default function SettingsPage() {
                 </div>
             </div>
 
-            {/* Ví Web3 & Hoàn ứng */}
+            {/* Ví nhận tiền hoàn ứng (Blockchain) */}
             <div className="card" style={{ marginBottom: 24 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
                     <h3 style={{ fontSize: 16, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
-                        <Wallet size={18} /> Ví Web3 nhận tiền hoàn ứng
+                        <Wallet size={18} /> Ví nhận tiền hoàn ứng (Blockchain)
                     </h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <button
+                            type="button"
+                            className="btn btn-sm btn-secondary"
+                            onClick={() => setShowGuideModal(true)}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                background: 'rgba(43, 158, 158, 0.08)',
+                                color: '#1a7575',
+                                borderColor: 'rgba(43, 158, 158, 0.3)',
+                                fontWeight: 600,
+                                fontSize: 12
+                            }}
+                            title="Xem hướng dẫn chi tiết cách cài đặt & sử dụng ví Web3"
+                        >
+                            <BookOpen size={14} /> Cẩm nang tạo & liên kết ví
+                        </button>
+                        <button
+                            type="button"
+                            className="btn btn-sm btn-secondary"
+                            onClick={fetchWalletStatus}
+                            disabled={loadingWalletStatus}
+                            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                            title="Đồng bộ số dư và trạng thái ví từ Blockchain Linea Sepolia"
+                        >
+                            <RefreshCw size={13} className={loadingWalletStatus ? 'spin' : ''} />
+                            {loadingWalletStatus ? 'Đang đồng bộ...' : 'Đồng bộ số dư'}
+                        </button>
+                    </div>
+                </div>
+
+                {/* Ghi chú nhắc nhở ngắn gọn */}
+                <div style={{
+                    background: 'var(--color-bg-secondary, #f8fafc)',
+                    borderRadius: 8,
+                    padding: '10px 14px',
+                    border: '1px solid var(--color-border)',
+                    marginBottom: 16,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    fontSize: 13,
+                    color: 'var(--color-text-secondary)'
+                }}>
+                    <Info size={16} style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
+                    <div style={{ flex: 1 }}>
+                        Hệ thống giải ngân hoàn ứng tự động qua Smart Contract. Bạn chỉ cần liên kết ví MetaMask một lần để Kế toán có thể duyệt và chuyển tiền cho bạn.
+                    </div>
                     <button
                         type="button"
-                        className="btn btn-sm btn-secondary"
-                        onClick={fetchWalletStatus}
-                        disabled={loadingWalletStatus}
-                        style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-                        title="Kiểm tra trạng thái ví trên blockchain"
+                        onClick={() => { setShowGuideModal(true); setGuideTab('steps'); }}
+                        style={{ background: 'none', border: 'none', color: 'var(--color-primary)', cursor: 'pointer', padding: 0, fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap' }}
                     >
-                        <RefreshCw size={13} className={loadingWalletStatus ? 'spin' : ''} />
-                        {loadingWalletStatus ? 'Đang kiểm tra...' : 'Kiểm tra on-chain'}
+                        Xem hướng dẫn &rarr;
                     </button>
                 </div>
 
@@ -357,7 +405,7 @@ export default function SettingsPage() {
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
                         <div style={{ flex: 1, minWidth: 280 }}>
                             <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <span>Địa chỉ ví đang kích hoạt:</span>
+                                <span>Địa chỉ ví nhận hoàn ứng:</span>
                                 {user.walletAddress && (
                                     <span className="badge badge-success" style={{ fontSize: 10, padding: '2px 8px' }}>
                                         ✓ Đang kích hoạt
@@ -394,7 +442,7 @@ export default function SettingsPage() {
                                             target="_blank"
                                             rel="noreferrer"
                                             style={{ color: 'var(--color-text-muted)', padding: 4, display: 'inline-flex' }}
-                                            title="Xem ví trên Block Explorer"
+                                            title="Xem ví trên Block Explorer (Lineascan)"
                                         >
                                             <ExternalLink size={14} />
                                         </a>
@@ -406,7 +454,7 @@ export default function SettingsPage() {
                         {/* On-chain balance & registration info */}
                         <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' }}>
                             <div>
-                                <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Số dư token vVND</div>
+                                <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Số dư vVND (1 vVND = 1 VNĐ)</div>
                                 <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--color-primary)' }}>
                                     {walletStatus?.balance !== undefined
                                         ? `${Number(walletStatus.balance).toLocaleString('vi-VN')} vVND`
@@ -434,15 +482,15 @@ export default function SettingsPage() {
                                 </button>
                             </div>
                             <div>
-                                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 2 }}>Trạng thái Smart Contract</div>
+                                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 2 }}>Hợp đồng thông minh (Smart Contract)</div>
                                 <div>
                                     {walletStatus?.isRegisteredOnChain ? (
                                         <span className="badge badge-success" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
-                                            <CheckCircle2 size={12} /> Đã cấp quyền hoàn ứng
+                                            <CheckCircle2 size={12} /> Sẵn sàng nhận giải ngân
                                         </span>
                                     ) : (
                                         <span className="badge badge-warning" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
-                                            <AlertCircle size={12} /> Đang cập nhật on-chain
+                                            <AlertCircle size={12} /> Đang đồng bộ Blockchain
                                         </span>
                                     )}
                                 </div>
@@ -453,7 +501,7 @@ export default function SettingsPage() {
 
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
                     <p style={{ fontSize: 13, color: 'var(--color-text-muted)', margin: 0, maxWidth: 540, lineHeight: 1.5 }}>
-                        Hệ thống bảo đảm <strong>Zero Private-Key Leakage</strong>: Người dùng không cần gửi Private Key. Quá trình liên kết sử dụng chữ ký mật mã (EIP-191) để chứng minh quyền sở hữu an toàn tuyệt đối.
+                        🔒 <strong>An toàn tuyệt đối:</strong> Hệ thống KHÔNG BAO GIỜ yêu cầu bạn cung cấp Private Key hay 12 từ khóa bí mật. Bạn chỉ ký số xác thực chủ quyền ví (miễn phí 100%) khi muốn kết nối ví cá nhân.
                     </p>
                     <button
                         type="button"
@@ -470,7 +518,7 @@ export default function SettingsPage() {
                         ) : (
                             <>
                                 <Link2 size={15} />
-                                <span>{user.walletAddress ? 'Đổi sang ví MetaMask khác' : 'Liên kết ví MetaMask'}</span>
+                                <span>{user.walletAddress ? 'Đổi sang ví MetaMask cá nhân' : 'Liên kết ví MetaMask cá nhân'}</span>
                             </>
                         )}
                     </button>
@@ -588,7 +636,15 @@ export default function SettingsPage() {
                                 Nếu muốn tự quản lý token <strong>vVND</strong> và rút về tài khoản ngân hàng hoặc ví cá nhân, bạn có thể tải MetaMask cho Chrome / Edge / Brave.
                             </p>
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 22 }}>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 22, flexWrap: 'wrap' }}>
+                            <button
+                                type="button"
+                                className="btn btn-secondary"
+                                onClick={() => { setShowNoMetaMaskModal(false); setShowGuideModal(true); }}
+                                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                            >
+                                <BookOpen size={14} /> Mở cẩm nang hướng dẫn
+                            </button>
                             <a
                                 href="https://metamask.io/download/"
                                 target="_blank"
@@ -599,6 +655,152 @@ export default function SettingsPage() {
                                 <ExternalLink size={14} /> Tải MetaMask
                             </a>
                             <button className="btn btn-primary" onClick={() => setShowNoMetaMaskModal(false)}>
+                                Đã hiểu
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Cẩm nang: Hướng dẫn liên kết ví nhận hoàn ứng */}
+            {showGuideModal && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(0, 0, 0, 0.45)',
+                        backdropFilter: 'blur(4px)',
+                        zIndex: 9999,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 20,
+                    }}
+                    onClick={() => setShowGuideModal(false)}
+                >
+                    <div
+                        className="card"
+                        style={{ maxWidth: 520, width: '100%', maxHeight: '85vh', overflowY: 'auto', margin: 0, boxShadow: 'var(--shadow-lg)', borderRadius: 14, padding: 22 }}
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* Header */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 12, borderBottom: '1px solid var(--color-border)', marginBottom: 14 }}>
+                            <h3 style={{ fontSize: 16, fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <BookOpen size={18} /> Cẩm nang liên kết ví nhận hoàn ứng
+                            </h3>
+                            <button
+                                onClick={() => setShowGuideModal(false)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', padding: 4 }}
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {/* Tab Switcher */}
+                        <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+                            <button
+                                type="button"
+                                onClick={() => setGuideTab('steps')}
+                                style={{
+                                    background: guideTab === 'steps' ? 'var(--color-primary)' : 'var(--color-bg-secondary, #f1f5f9)',
+                                    color: guideTab === 'steps' ? '#fff' : 'var(--color-text)',
+                                    border: 'none',
+                                    borderRadius: 6,
+                                    padding: '6px 12px',
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                Các bước liên kết (1 phút)
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setGuideTab('faq')}
+                                style={{
+                                    background: guideTab === 'faq' ? 'var(--color-primary)' : 'var(--color-bg-secondary, #f1f5f9)',
+                                    color: guideTab === 'faq' ? '#fff' : 'var(--color-text)',
+                                    border: 'none',
+                                    borderRadius: 6,
+                                    padding: '6px 12px',
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                Giải đáp thắc mắc
+                            </button>
+                        </div>
+
+                        {/* Tab 1: Các bước */}
+                        {guideTab === 'steps' && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 13, lineHeight: 1.5 }}>
+                                <div style={{ padding: '10px 14px', borderRadius: 8, border: '1px solid var(--color-border)', background: 'var(--color-bg-secondary, #f8fafc)' }}>
+                                    <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                                        1. Cài đặt tiện ích MetaMask
+                                    </div>
+                                    <p style={{ margin: '0 0 6px 0', color: 'var(--color-text-secondary)', fontSize: 12 }}>
+                                        Cài extension MetaMask trên Chrome / Edge / Brave và lưu giữ 12 từ khóa khôi phục bí mật.
+                                    </p>
+                                    <a
+                                        href="https://metamask.io/download/"
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        style={{ color: 'var(--color-primary)', fontSize: 12, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 500 }}
+                                    >
+                                        Tải MetaMask chính thức <ExternalLink size={12} />
+                                    </a>
+                                </div>
+
+                                <div style={{ padding: '10px 14px', borderRadius: 8, border: '1px solid var(--color-border)', background: 'var(--color-bg-secondary, #f8fafc)' }}>
+                                    <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                                        2. Bấm "Liên kết ví MetaMask"
+                                    </div>
+                                    <p style={{ margin: 0, color: 'var(--color-text-secondary)', fontSize: 12 }}>
+                                        Bấm nút liên kết trên trang này, sau đó bấm <strong>Ký (Sign)</strong> trên popup MetaMask để xác thực chủ quyền ví. Thao tác ký là <strong>miễn phí 100% (0đ)</strong>.
+                                    </p>
+                                </div>
+
+                                <div style={{ padding: '10px 14px', borderRadius: 8, border: '1px solid var(--color-border)', background: 'var(--color-bg-secondary, #f8fafc)' }}>
+                                    <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                                        3. Thêm token vVND vào ví
+                                    </div>
+                                    <p style={{ margin: 0, color: 'var(--color-text-secondary)', fontSize: 12 }}>
+                                        Bấm nút <strong>"+ Thêm vVND vào MetaMask"</strong> dưới mục số dư để ví hiển thị số tiền hoàn ứng mỗi khi Kế toán duyệt chi.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Tab 2: Giải đáp thắc mắc */}
+                        {guideTab === 'faq' && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13, lineHeight: 1.5 }}>
+                                <div style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid var(--color-border)' }}>
+                                    <strong style={{ fontSize: 12 }}>Tại sao tôi phải liên kết ví?</strong>
+                                    <div style={{ color: 'var(--color-text-secondary)', fontSize: 12, marginTop: 3 }}>
+                                        Hệ thống hoàn ứng tự động bằng Hợp đồng thông minh. Smart Contract bắt buộc cần địa chỉ ví của bạn để chuyển tiền trực tiếp. Nếu chưa liên kết, Kế toán không thể duyệt hoàn ứng.
+                                    </div>
+                                </div>
+
+                                <div style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid var(--color-border)' }}>
+                                    <strong style={{ fontSize: 12 }}>Token vVND là gì?</strong>
+                                    <div style={{ color: 'var(--color-text-secondary)', fontSize: 12, marginTop: 3 }}>
+                                        Là điểm hoàn ứng đại diện theo tỷ lệ 1 vVND = 1 VNĐ chạy trên mạng Linea Sepolia. Ví dụ công ty hoàn ứng 500.000đ thì bạn nhận 500.000 vVND.
+                                    </div>
+                                </div>
+
+                                <div style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid var(--color-border)' }}>
+                                    <strong style={{ fontSize: 12 }}>Có bị mất phí hay lộ thông tin ví không?</strong>
+                                    <div style={{ color: 'var(--color-text-secondary)', fontSize: 12, marginTop: 3 }}>
+                                        Hoàn toàn không. Hệ thống chỉ dùng chữ ký điện tử mật mã (EIP-191) để xác nhận địa chỉ ví thuộc về bạn, tuyệt đối không hỏi mật khẩu hay 12 từ khóa bí mật.
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Footer */}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--color-border)' }}>
+                            <button className="btn btn-sm btn-primary" onClick={() => setShowGuideModal(false)}>
                                 Đã hiểu
                             </button>
                         </div>

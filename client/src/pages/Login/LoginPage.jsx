@@ -5,7 +5,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { LogIn } from 'lucide-react';
+import { LogIn, Eye, EyeOff } from 'lucide-react';
 import './LoginPage.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
@@ -17,6 +17,7 @@ export default function LoginPage() {
     const location = useLocation();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [googleLoading, setGoogleLoading] = useState(false);
@@ -177,15 +178,39 @@ export default function LoginPage() {
 
                     <div className="form-group">
                         <label htmlFor="password">Mật khẩu</label>
-                        <input
-                            id="password"
-                            type="password"
-                            className="form-input"
-                            placeholder="••••••••"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            required
-                        />
+                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                            <input
+                                id="password"
+                                type={showPassword ? 'text' : 'password'}
+                                className="form-input"
+                                placeholder="••••••••"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                required
+                                style={{ width: '100%', paddingRight: 42 }}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                style={{
+                                    position: 'absolute',
+                                    right: 12,
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    padding: 4,
+                                    color: 'var(--color-text-muted, #94a3b8)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    transition: 'color 0.15s ease'
+                                }}
+                                title={showPassword ? 'Ẩn mật khẩu' : 'Xem mật khẩu'}
+                                tabIndex={-1}
+                            >
+                                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
+                        </div>
                     </div>
 
                     <button
