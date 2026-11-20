@@ -168,6 +168,11 @@ export const adminAPI = {
 
     auditLogs: () => request('/admin/audit-logs'),
 
+    // Google SSO Domain Whitelist
+    domains: () => request('/admin/domains'),
+    addDomain: (domain) => request('/admin/domains', { method: 'POST', body: JSON.stringify({ domain }) }),
+    removeDomain: (domain) => request(`/admin/domains/${encodeURIComponent(domain)}`, { method: 'DELETE' }),
+
     users: () => request('/admin/users'),
     createUser: (data) => request('/admin/users', { method: 'POST', body: JSON.stringify(data) }),
 

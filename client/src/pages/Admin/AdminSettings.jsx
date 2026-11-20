@@ -5,7 +5,7 @@
 import { useState, useEffect } from 'react';
 import { adminAPI } from '../../api/client.js';
 import { useToast } from '../../context/ToastContext.jsx';
-import { Settings, Users, Shield, History, Plus, Save, Trash2, ShieldAlert } from 'lucide-react';
+import { Settings, Users, Shield, History, Plus, Save, Trash2, ShieldAlert, Globe, ShieldCheck } from 'lucide-react';
 import './AdminSettings.css';
 
 const formatNumber = (val) => {
@@ -32,6 +32,9 @@ export default function AdminSettings() {
                 <button className={`settings-tab ${activeTab === 'departments' ? 'active' : ''}`} onClick={() => setActiveTab('departments')}>
                     <Users size={16} /> Phòng ban
                 </button>
+                <button className={`settings-tab ${activeTab === 'domains' ? 'active' : ''}`} onClick={() => setActiveTab('domains')}>
+                    <Globe size={16} /> Tên miền Google SSO
+                </button>
                 <button className={`settings-tab ${activeTab === 'audit' ? 'active' : ''}`} onClick={() => setActiveTab('audit')}>
                     <History size={16} /> Nhật ký hệ thống
                 </button>
@@ -40,6 +43,7 @@ export default function AdminSettings() {
             <div className="card">
                 {activeTab === 'policy' && <PolicyTab toast={toast} />}
                 {activeTab === 'departments' && <DepartmentsTab toast={toast} />}
+                {activeTab === 'domains' && <DomainsTab toast={toast} />}
                 {activeTab === 'audit' && <AuditLogTab toast={toast} />}
             </div>
         </div>
@@ -308,6 +312,190 @@ function AuditLogTab({ toast }) {
                     })}
                 </div>
             )}
+        </div>
+    );
+}
+
+function DomainsTab({ toast }) {
+    const [domains, setDomains] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [newDomain, setNewDomain] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+    const [deleting, setDeleting] = useState(null);
+
+    const fetchDomains = async () => {
+        try {
+            const res = await adminAPI.domains();
+            if (res.success && res.data) {
+                setDomains(res.data);
+            }
+        } catch (err) {
+            console.error('Lỗi tải danh sách domain:', err);
+            toast('Không thể tải danh sách tên miền: ' + (err.message || ''), 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchDomains();
+    }, []);
+
+    const handleAdd = async (e) => {
+        e.preventDefault();
+        const trimmed = newDomain.trim();
+        if (!trimmed) {
+            toast('Vui lòng nhập tên miền', 'warning');
+            return;
+        }
+
+        setSubmitting(true);
+        try {
+            const res = await adminAPI.addDomain(trimmed);
+            if (res.success) {
+                toast(res.message || 'Đã cấp phép tên miền thành công!', 'success');
+                setDomains(res.data);
+                setNewDomain('');
+            }
+        } catch (err) {
+            toast(err.message || 'Lỗi khi thêm tên miền', 'error');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleDelete = async (domain) => {
+        if (!window.confirm(`Bạn có chắc muốn xóa quyền truy cập của tên miền @${domain}? Người dùng email đuôi này sẽ không thể đăng nhập Google SSO nữa.`)) {
+            return;
+        }
+
+        setDeleting(domain);
+        try {
+            const res = await adminAPI.removeDomain(domain);
+            if (res.success) {
+                toast(res.message || `Đã xóa tên miền @${domain}`, 'success');
+                setDomains(res.data);
+            }
+        } catch (err) {
+            toast(err.message || 'Lỗi khi xóa tên miền', 'error');
+        } finally {
+            setDeleting(null);
+        }
+    };
+
+    if (loading) {
+        return (
+            <div style={{ textAlign: 'center', padding: 40 }}>
+                <span className="spinner" style={{ width: 24, height: 24 }} />
+                <div style={{ marginTop: 12, color: 'var(--color-text-muted)', fontSize: 13 }}>Đang tải danh sách tên miền...</div>
+            </div>
+        );
+    }
+
+    return (
+        <div>
+            <div style={{ marginBottom: 24 }}>
+                <h3 style={{ fontSize: 16, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 8px 0' }}>
+                    <Globe size={18} color="var(--color-primary)" /> Quản lý Tên miền Google SSO (Domain Whitelist)
+                </h3>
+                <p style={{ color: 'var(--color-text-muted)', fontSize: 13, margin: 0, lineHeight: 1.5 }}>
+                    Chỉ cho phép các tài khoản email thuộc các tên miền dưới đây đăng nhập bằng <strong>Google Identity Services (OAuth 2.0)</strong>. Hệ thống tự động chặn mọi email cá nhân lạ (như @gmail.com). Khi thêm hoặc xóa ở đây, hệ thống <strong>áp dụng tức thì theo thời gian thực mà không cần khởi động lại máy chủ</strong>.
+                </p>
+            </div>
+
+            {/* Form thêm domain */}
+            <form onSubmit={handleAdd} style={{ display: 'flex', gap: 12, marginBottom: 28, maxWidth: 580 }}>
+                <div style={{ position: 'relative', flex: 1 }}>
+                    <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)', fontWeight: 600 }}>@</span>
+                    <input
+                        type="text"
+                        className="form-input"
+                        placeholder="Nhập tên miền mới (ví dụ: vku.udn.vn, fpt.edu.vn, company.vn)"
+                        value={newDomain}
+                        onChange={(e) => setNewDomain(e.target.value)}
+                        style={{ paddingLeft: 32 }}
+                        disabled={submitting}
+                    />
+                </div>
+                <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={submitting || !newDomain.trim()}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
+                >
+                    {submitting ? (
+                        <>
+                            <span className="spinner" style={{ width: 14, height: 14 }} />
+                            <span>Đang thêm...</span>
+                        </>
+                    ) : (
+                        <>
+                            <Plus size={16} />
+                            <span>Cấp phép Domain</span>
+                        </>
+                    )}
+                </button>
+            </form>
+
+            {/* Danh sách domain đang cấp phép */}
+            <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 12 }}>
+                    Tên miền đang được cấp phép ({domains.length}):
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
+                    {domains.map((dom) => (
+                        <div
+                            key={dom}
+                            style={{
+                                border: '1px solid var(--color-border)',
+                                borderRadius: 10,
+                                padding: '14px 16px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                background: 'var(--color-bg-secondary, #f8fafc)',
+                            }}
+                        >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
+                                    <ShieldCheck size={18} />
+                                </div>
+                                <div>
+                                    <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--color-text)' }}>
+                                        @{dom}
+                                    </div>
+                                    <div style={{ fontSize: 11, color: '#10b981', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                        ● Đang kích hoạt
+                                    </div>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => handleDelete(dom)}
+                                disabled={deleting === dom}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    padding: 6,
+                                    borderRadius: 6,
+                                    color: 'var(--color-text-muted)',
+                                    transition: 'all 0.2s',
+                                }}
+                                title={`Xóa quyền truy cập của tên miền @${dom}`}
+                                onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
+                                onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-text-muted)'}
+                            >
+                                {deleting === dom ? (
+                                    <span className="spinner" style={{ width: 14, height: 14 }} />
+                                ) : (
+                                    <Trash2 size={16} />
+                                )}
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            </div>
         </div>
     );
 }

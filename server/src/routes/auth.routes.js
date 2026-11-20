@@ -9,6 +9,7 @@ import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
 import { authenticate } from '../middleware/auth.js';
 import { registerEmployeeOnChain, isBlockchainReady } from '../services/blockchain/blockchainService.js';
+import { getAllowedDomains } from '../services/domainService.js';
 import { ethers } from 'ethers';
 
 const router = Router();
@@ -247,11 +248,8 @@ router.post('/google', async (req, res, next) => {
 
         email = email.toLowerCase().trim();
 
-        // 2. Kiểm tra Whitelist domain được phép truy cập
-        // Mặc định: @vku.udn.vn và @company.vn
-        const allowedDomains = (process.env.ALLOWED_EMAIL_DOMAINS || 'vku.udn.vn,company.vn')
-            .split(',')
-            .map(d => d.trim().toLowerCase());
+        // 2. Kiểm tra Whitelist domain được phép truy cập (Dynamic Domain Whitelist do Admin cấu hình)
+        const allowedDomains = getAllowedDomains();
 
         const emailDomain = email.split('@')[1];
         if (!emailDomain || !allowedDomains.includes(emailDomain)) {

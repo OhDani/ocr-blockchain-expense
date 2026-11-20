@@ -6,6 +6,7 @@ import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, requireAdmin, requireManager } from '../middleware/auth.js';
 import { getCompanyPoolBalance, isBlockchainReady, registerEmployeeOnChain, checkEmployeeRegisteredOnChain } from '../services/blockchain/blockchainService.js';
+import { getAllowedDomains, addAllowedDomain, removeAllowedDomain } from '../services/domainService.js';
 import { ethers } from 'ethers';
 
 const router = Router();
@@ -803,6 +804,66 @@ router.get('/blockchain', requireAdmin, async (req, res, next) => {
         res.json({ success: true, data: txs });
     } catch (error) {
         next(error);
+    }
+});
+
+/**
+ * GET /api/admin/domains — Lấy danh sách domain Google SSO được phép truy cập
+ */
+router.get('/domains', requireAdmin, (req, res) => {
+    try {
+        const domains = getAllowedDomains();
+        res.json({ success: true, data: domains });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+/**
+ * POST /api/admin/domains — Thêm domain Google SSO mới
+ */
+router.post('/domains', requireAdmin, async (req, res) => {
+    try {
+        const { domain } = req.body;
+        const updated = addAllowedDomain(domain);
+
+        try {
+            await prisma.auditLog.create({
+                data: {
+                    userId: req.user.id,
+                    action: 'ADD_DOMAIN_WHITELIST',
+                    details: `Thêm domain @${domain.replace(/^@/, '')} vào danh sách Google SSO`,
+                },
+            });
+        } catch {}
+
+        res.json({ success: true, message: `Đã thêm tên miền @${domain.replace(/^@/, '')}`, data: updated });
+    } catch (err) {
+        res.status(400).json({ success: false, error: err.message });
+    }
+});
+
+/**
+ * DELETE /api/admin/domains/:domain — Xóa domain khỏi danh sách Google SSO
+ */
+router.delete('/domains/:domain', requireAdmin, async (req, res) => {
+    try {
+        const { domain } = req.params;
+        const updated = removeAllowedDomain(domain);
+
+        try {
+            await prisma.auditLog.create({
+                data: {
+                    userId: req.user.id,
+                    action: 'REMOVE_DOMAIN_WHITELIST',
+                    details: `Xóa domain @${domain} khỏi danh sách Google SSO`,
+                },
+            });
+        } catch {}
+
+        res.json({ success: true, message: `Đã xóa tên miền @${domain}`, data: updated });
+    } catch (err) {
+        res.status(400).json({ success: false, error: err.message });
     }
 });
 
