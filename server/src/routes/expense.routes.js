@@ -16,6 +16,7 @@ import { parseOcrResult } from '../services/ocr/ocrParser.js';
 import { evaluatePolicy } from '../services/policy/policyEngine.js';
 import { analyzeFraud } from '../services/policy/fraudEngine.js';
 import { hashBuffer } from '../utils/hash.js';
+import { normalizeCategory } from '../utils/categoryHelper.js';
 import {
     submitExpenseOnChain,
     validateExpenseOnChain,
@@ -62,11 +63,27 @@ router.post('/upload', upload.single('invoice'), async (req, res, next) => {
         // Lấy thông tin user + trip
         const user = await prisma.user.findUnique({ where: { id: req.user.id } });
         let trip = null;
+        let expenseUserId = req.user.id;
+        let targetUser = user;
+
         if (tripId) {
-            trip = await prisma.trip.findUnique({ where: { id: tripId } });
-            if (!trip || trip.userId !== req.user.id) {
-                return res.status(404).json({ success: false, error: 'Không tìm thấy chuyến công tác' });
+            trip = await prisma.trip.findUnique({
+                where: { id: tripId },
+                include: { user: true },
+            });
+
+            const isOwner = trip && trip.userId === req.user.id;
+            const isManagerOfDept = trip && req.user.role === 'MANAGER' && trip.user?.departmentId === user?.departmentId;
+            const isAdmin = req.user.role === 'ADMIN';
+
+            if (!trip || (!isOwner && !isManagerOfDept && !isAdmin)) {
+                return res.status(404).json({ success: false, error: 'Không tìm thấy chuyến công tác hoặc không có quyền truy cập' });
             }
+
+            // Gán chi phí đúng cho chủ sở hữu chuyến công tác
+            expenseUserId = trip.userId;
+            targetUser = trip.user || user;
+
             // Auto chuyển trạng thái: PLANNED → ONGOING khi có chi phí mới
             if (trip.status === 'PLANNED') {
                 await prisma.trip.update({
@@ -102,25 +119,27 @@ router.post('/upload', upload.single('invoice'), async (req, res, next) => {
             });
         }
 
-        // ④ Policy Engine — Đối chiếu ngân sách
-        const policyResult = await evaluatePolicy({
-            ocrData: parseResult.data,
-            employeeRole: user.role,
-            approvedBudget: trip?.budget,
-            userId: req.user.id,
-            tripId: tripId || null,
-        });
+        // ④ Tạo invoice hash (SHA-256)
+        const invoiceHash = hashBuffer(req.file.buffer);
 
-        // ⑤ AI Fraud Detection — Phân tích rủi ro
+        // ⑤ AI Fraud Detection — Phân tích rủi ro & Check trùng lặp đa tầng
         const fraudResult = await analyzeFraud({
             ocrData: parseResult.data,
             trip: trip,
+            invoiceHash,
         });
 
-        // ⑥ Tạo invoice hash (SHA-256)
-        const invoiceHash = hashBuffer(req.file.buffer);
+        // ⑥ Policy Engine — Đối chiếu ngân sách & chính sách
+        const policyResult = await evaluatePolicy({
+            ocrData: parseResult.data,
+            employeeRole: targetUser.role,
+            approvedBudget: trip?.budget,
+            userId: expenseUserId,
+            tripId: tripId || null,
+            duplicateInfo: fraudResult.duplicateInfo,
+        });
 
-        // ⑦ Xác định status dựa trên policy
+        // ⑦ Xác định status dựa trên policy & fraud
         let status = 'PENDING';
         if (policyResult.status === 'VALID' && fraudResult.fraudScore === 0) {
             status = 'APPROVED';
@@ -131,10 +150,10 @@ router.post('/upload', upload.single('invoice'), async (req, res, next) => {
 
         const expense = await prisma.expense.create({
             data: {
-                userId: req.user.id,
+                userId: expenseUserId,
                 tripId: tripId || null,
                 amount,
-                invoiceType: parseResult.data.invoice_type || 'other',
+                invoiceType: normalizeCategory(parseResult.data.invoice_type).code,
                 invoiceHash,
                 status,
                 userNote: userNote || null,
@@ -171,53 +190,58 @@ router.post('/upload', upload.single('invoice'), async (req, res, next) => {
             },
         });
 
-        // ⑨ Nếu approved + blockchain ready → ghi on-chain + auto hoàn ứng
+        // ⑨ Nếu approved + blockchain ready + đã có ví Web3 → ghi on-chain + auto hoàn ứng
         let blockchainResult = null;
         let blockchainError = null;
         if (status === 'APPROVED' && isBlockchainReady()) {
-            try {
-                const bcAmount = Math.floor(amount);
-                console.log(`🔗 Blockchain: submitting ${bcAmount}đ | employee: ${user.walletAddress}`);
-                blockchainResult = await submitExpenseOnChain(bcAmount, invoiceHash, user.walletAddress);
-                console.log(`🔗 Blockchain: submitted, expenseId=${blockchainResult.expenseId}`);
+            if (!targetUser.walletAddress) {
+                console.log(`ℹ️ Nhân viên ${targetUser.name} chưa liên kết ví Web3. Đơn giữ trạng thái APPROVED, chờ liên kết ví để giải ngân on-chain.`);
+            } else {
+                try {
+                    const bcAmount = Math.floor(amount);
+                    console.log(`🔗 Blockchain: submitting ${bcAmount}đ | employee: ${targetUser.walletAddress}`);
+                    blockchainResult = await submitExpenseOnChain(bcAmount, invoiceHash, targetUser.walletAddress);
+                    console.log(`🔗 Blockchain: submitted, expenseId=${blockchainResult.expenseId}`);
 
-                // Validate ngay (auto-approve → reimburse)
-                if (blockchainResult.expenseId !== null) {
-                    console.log(`🔗 Blockchain: validating → auto reimburse...`);
-                    const validateResult = await validateExpenseOnChain(blockchainResult.expenseId, true);
-                    blockchainResult.validateTxHash = validateResult.txHash;
-                }
+                    // Validate ngay (auto-approve → reimburse)
+                    if (blockchainResult.expenseId !== null) {
+                        console.log(`🔗 Blockchain: validating → auto reimburse...`);
+                        const validateResult = await validateExpenseOnChain(blockchainResult.expenseId, true);
+                        blockchainResult.validateTxHash = validateResult.txHash;
+                    }
 
-                // Lưu BlockchainTx + cập nhật status REIMBURSED
-                await prisma.$transaction([
-                    prisma.blockchainTx.create({
+                    // Lưu BlockchainTx + cập nhật status REIMBURSED
+                    await prisma.$transaction([
+                        prisma.blockchainTx.create({
+                            data: {
+                                expenseId: expense.id,
+                                txHash: blockchainResult.validateTxHash || blockchainResult.txHash,
+                                blockchainId: blockchainResult.expenseId,
+                                gasUsed: blockchainResult.gasUsed,
+                                status: 'SUCCESS',
+                            },
+                        }),
+                        prisma.expense.update({
+                            where: { id: expense.id },
+                            data: { status: 'REIMBURSED' },
+                        }),
+                    ]);
+
+                    expense.status = 'REIMBURSED';
+                    console.log(`✅ Blockchain: REIMBURSED | TX: ${blockchainResult.validateTxHash || blockchainResult.txHash}`);
+                } catch (err) {
+                    console.error('❌ Lỗi ghi nhận lên Blockchain:', err.message);
+                    blockchainError = err.message;
+                    // Ghi BlockchainTx FAILED
+                    await prisma.blockchainTx.create({
                         data: {
                             expenseId: expense.id,
-                            txHash: blockchainResult.validateTxHash || blockchainResult.txHash,
-                            blockchainId: blockchainResult.expenseId,
-                            gasUsed: blockchainResult.gasUsed,
-                            status: 'SUCCESS',
+                            txHash: 'FAILED',
+                            status: 'FAILED',
+                            errorMessage: err.message,
                         },
-                    }),
-                    prisma.expense.update({
-                        where: { id: expense.id },
-                        data: { status: 'REIMBURSED' },
-                    }),
-                ]);
-
-                expense.status = 'REIMBURSED';
-                console.log(`✅ Blockchain: REIMBURSED | TX: ${blockchainResult.validateTxHash || blockchainResult.txHash}`);
-            } catch (err) {
-                console.error('❌ Lỗi ghi nhận lên Blockchain:', err.message);
-                blockchainError = err.message;
-                // Ghi BlockchainTx FAILED
-                await prisma.blockchainTx.create({
-                    data: {
-                        expenseId: expense.id,
-                        status: 'FAILED',
-                        errorMessage: err.message,
-                    },
-                }).catch(() => { });
+                    }).catch(() => {});
+                }
             }
         } else if (status === 'APPROVED' && !isBlockchainReady()) {
             console.log('⚠️ Blockchain not ready — expense APPROVED nhưng chưa hoàn ứng on-chain');
@@ -233,7 +257,7 @@ router.post('/upload', upload.single('invoice'), async (req, res, next) => {
                     userId: admin.id,
                     type: 'expense_pending',
                     title: 'Hóa đơn mới cần duyệt',
-                    message: `${req.user.name || 'Nhân viên'} nộp hóa đơn ${expense.invoiceType || ''} ${amount.toLocaleString('vi-VN')}đ cần kiểm duyệt.`,
+                    message: `${targetUser.name || 'Nhân viên'} có hóa đơn ${expense.invoiceType || ''} ${amount.toLocaleString('vi-VN')}đ cần kiểm duyệt.`,
                     expenseId: expense.id,
                 }).catch(() => { });
             }
@@ -274,10 +298,24 @@ router.post('/manual', async (req, res, next) => {
         }
 
         // Validate trip
-        const trip = await prisma.trip.findUnique({ where: { id: tripId } });
-        if (!trip || trip.userId !== req.user.id) {
-            return res.status(404).json({ success: false, error: 'Không tìm thấy chuyến công tác' });
+        const trip = await prisma.trip.findUnique({
+            where: { id: tripId },
+            include: { user: true },
+        });
+
+        // Lấy thông tin user
+        const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+
+        const isOwner = trip && trip.userId === req.user.id;
+        const isManagerOfDept = trip && req.user.role === 'MANAGER' && trip.user?.departmentId === user?.departmentId;
+        const isAdmin = req.user.role === 'ADMIN';
+
+        if (!trip || (!isOwner && !isManagerOfDept && !isAdmin)) {
+            return res.status(404).json({ success: false, error: 'Không tìm thấy chuyến công tác hoặc không có quyền truy cập' });
         }
+
+        const expenseUserId = trip.userId;
+        const targetUser = trip.user || user;
 
         // Auto chuyển trạng thái trip
         if (trip.status === 'PLANNED') {
@@ -286,9 +324,6 @@ router.post('/manual', async (req, res, next) => {
                 data: { status: 'ONGOING' },
             });
         }
-
-        // Lấy thông tin user
-        const user = await prisma.user.findUnique({ where: { id: req.user.id } });
 
         // Dữ liệu hóa đơn nhập tay
         const parsedData = {
@@ -301,31 +336,43 @@ router.post('/manual', async (req, res, next) => {
             items: [],
         };
 
+        // Tạo invoice hash từ data
+        const invoiceHash = hashBuffer(Buffer.from(JSON.stringify({
+            tripId, amount, invoiceType, storeName, taxId, invoiceDate, userId: expenseUserId, ts: Date.now()
+        })));
+
+        // AI Fraud Detection & Check trùng lặp cho hóa đơn nhập tay
+        const fraudResult = await analyzeFraud({
+            ocrData: parsedData,
+            trip: trip,
+            invoiceHash,
+        });
+
+        if (!fraudResult.fraudFlags.includes('manual_entry')) {
+            fraudResult.fraudFlags.push('manual_entry');
+        }
+
         // Policy Engine
         const policyResult = await evaluatePolicy({
             ocrData: parsedData,
-            employeeRole: user.role,
+            employeeRole: targetUser.role,
             approvedBudget: trip?.budget,
-            userId: req.user.id,
+            userId: expenseUserId,
             tripId,
+            duplicateInfo: fraudResult.duplicateInfo,
         });
 
-        // Tạo invoice hash từ data
-        const invoiceHash = hashBuffer(Buffer.from(JSON.stringify({
-            tripId, amount, invoiceType, storeName, taxId, invoiceDate, userId: req.user.id, ts: Date.now()
-        })));
-
         let status = 'PENDING';
-        if (policyResult.status === 'VALID') {
+        if (policyResult.status === 'VALID' && fraudResult.fraudScore === 0) {
             status = 'APPROVED';
         }
 
         const expense = await prisma.expense.create({
             data: {
-                userId: req.user.id,
+                userId: expenseUserId,
                 tripId,
                 amount: parseFloat(amount),
-                invoiceType,
+                invoiceType: normalizeCategory(invoiceType).code,
                 invoiceHash,
                 status,
                 userNote: userNote || 'Nhập tay (không có ảnh hóa đơn)',
@@ -347,8 +394,8 @@ router.post('/manual', async (req, res, next) => {
                 },
                 fraudAnalysis: {
                     create: {
-                        fraudScore: 0,
-                        fraudFlags: ['manual_entry'],
+                        fraudScore: fraudResult.fraudScore,
+                        fraudFlags: fraudResult.fraudFlags,
                     },
                 },
             },
@@ -364,7 +411,7 @@ router.post('/manual', async (req, res, next) => {
         if (status === 'APPROVED' && isBlockchainReady()) {
             try {
                 const bcAmount = Math.floor(parseFloat(amount));
-                blockchainResult = await submitExpenseOnChain(bcAmount, invoiceHash, user.walletAddress);
+                blockchainResult = await submitExpenseOnChain(bcAmount, invoiceHash, targetUser.walletAddress);
                 if (blockchainResult.expenseId !== null) {
                     const validateResult = await validateExpenseOnChain(blockchainResult.expenseId, true);
                     blockchainResult.validateTxHash = validateResult.txHash;
@@ -397,7 +444,7 @@ router.post('/manual', async (req, res, next) => {
                     userId: admin.id,
                     type: 'expense_pending',
                     title: 'Hóa đơn mới cần duyệt',
-                    message: `${req.user.name || 'Nhân viên'} nộp hóa đơn ${invoiceType} ${parseFloat(amount).toLocaleString('vi-VN')}đ cần kiểm duyệt.`,
+                    message: `${targetUser.name || 'Nhân viên'} có hóa đơn ${invoiceType} ${parseFloat(amount).toLocaleString('vi-VN')}đ cần kiểm duyệt.`,
                     expenseId: expense.id,
                 }).catch(() => {});
             }

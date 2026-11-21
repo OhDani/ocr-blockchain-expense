@@ -7,6 +7,8 @@ import { PrismaClient } from '@prisma/client';
 import { authenticate, requireAdmin, requireManager } from '../middleware/auth.js';
 import { getCompanyPoolBalance, isBlockchainReady, registerEmployeeOnChain, checkEmployeeRegisteredOnChain } from '../services/blockchain/blockchainService.js';
 import { getAllowedDomains, addAllowedDomain, removeAllowedDomain } from '../services/domainService.js';
+import { getCompanyInfo, updateCompanyInfo } from '../services/companyService.js';
+import { normalizeCategory, getCategoryLabel } from '../utils/categoryHelper.js';
 import { ethers } from 'ethers';
 
 const router = Router();
@@ -16,74 +18,156 @@ const prisma = new PrismaClient();
 router.use(authenticate);
 
 /**
- * GET /api/admin/dashboard — Thống kê tổng quan (Admin only)
+ * GET /api/admin/dashboard — Thống kê tổng quan (Admin only, song song hóa DB & cache blockchain)
  */
 router.get('/dashboard', requireAdmin, async (req, res, next) => {
     try {
-        const statusCounts = await prisma.expense.groupBy({
-            by: ['status'],
-            _count: { id: true },
-            _sum: { amount: true },
-        });
-
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
 
-        // Hóa đơn trong tháng này:
-        // - Số lượng hóa đơn: tổng tất cả hóa đơn phát sinh trong tháng
-        // - Tổng chi (amount): CHỈ tính các hóa đơn ĐÃ DUYỆT hoặc ĐÃ HOÀN ỨNG (APPROVED, REIMBURSED)
-        const monthlyTotalExpenses = await prisma.expense.aggregate({
-            _count: { id: true },
-            where: { createdAt: { gte: startOfMonth } },
-        });
-
-        const monthlyApprovedExpenses = await prisma.expense.aggregate({
-            _count: { id: true },
-            _sum: { amount: true },
-            where: {
-                createdAt: { gte: startOfMonth },
-                status: { in: ['APPROVED', 'REIMBURSED'] },
-            },
-        });
+        // Chạy song song tất cả truy vấn database & blockchain cache để tốc độ cực nhanh
+        const [
+            statusCounts,
+            monthlyTotalExpenses,
+            monthlyApprovedExpenses,
+            totalUsers,
+            totalTrips,
+            reimbursedStats,
+            companyPoolBalance,
+            pendingExpenses,
+            fraudAnalyses,
+            sixMonthExpenses,
+            categoryExpenses,
+        ] = await Promise.all([
+            // 1. Phân bổ trạng thái
+            prisma.expense.groupBy({
+                by: ['status'],
+                _count: { id: true },
+                _sum: { amount: true },
+            }),
+            // 2. Tổng hóa đơn tháng này
+            prisma.expense.aggregate({
+                _count: { id: true },
+                where: { createdAt: { gte: startOfMonth } },
+            }),
+            // 3. Đã duyệt/hoàn ứng tháng này
+            prisma.expense.aggregate({
+                _count: { id: true },
+                _sum: { amount: true },
+                where: {
+                    createdAt: { gte: startOfMonth },
+                    status: { in: ['APPROVED', 'REIMBURSED'] },
+                },
+            }),
+            // 4. Số nhân sự
+            prisma.user.count(),
+            // 5. Số chuyến công tác
+            prisma.trip.count(),
+            // 6. Thống kê hoàn ứng
+            prisma.expense.aggregate({
+                where: { status: 'REIMBURSED' },
+                _count: { id: true },
+                _sum: { amount: true },
+            }),
+            // 7. Số dư quỹ Smart Contract (đã có in-memory cache 45s)
+            getCompanyPoolBalance(),
+            // 8. 5 phiếu chi chờ duyệt mới nhất (Action Queue cho Dashboard)
+            prisma.expense.findMany({
+                where: { status: 'PENDING' },
+                include: {
+                    user: { select: { name: true, department: { select: { name: true } } } },
+                    fraudAnalysis: { select: { fraudScore: true, fraudFlags: true } },
+                },
+                orderBy: { createdAt: 'desc' },
+                take: 5,
+            }),
+            // 9. Dữ liệu phân tích rủi ro AI (AI Fraud Radar)
+            prisma.fraudAnalysis.findMany({
+                select: { fraudScore: true, fraudFlags: true },
+            }),
+            // 10. Xu hướng 6 tháng gần nhất
+            prisma.expense.findMany({
+                where: {
+                    createdAt: { gte: sixMonthsAgo },
+                    status: { in: ['APPROVED', 'REIMBURSED'] },
+                },
+                select: { amount: true, createdAt: true },
+            }),
+            // 11. Phân bổ danh mục chi tiêu thực tế
+            prisma.expense.findMany({
+                where: { status: { in: ['APPROVED', 'REIMBURSED'] } },
+                select: { amount: true, invoiceType: true },
+            }),
+        ]);
 
         // Tổng chi tiêu toàn hệ thống: Chỉ tính hóa đơn ĐÃ DUYỆT hoặc ĐÃ HOÀN ỨNG
         const totalApprovedAmount = statusCounts
             .filter(s => s.status === 'APPROVED' || s.status === 'REIMBURSED')
             .reduce((sum, s) => sum + (s._sum.amount || 0), 0);
 
-        const totalUsers = await prisma.user.count();
-        const totalTrips = await prisma.trip.count();
-
-        let companyPoolBalance = null;
-        let blockchainConnected = false;
-        try {
-            if (isBlockchainReady()) {
-                companyPoolBalance = await getCompanyPoolBalance();
-                blockchainConnected = true;
-            }
-        } catch (err) {
-            console.warn('[Dashboard] Blockchain không khả dụng:', err.message);
+        // Xu hướng chi tiêu 6 tháng
+        const monthlyTrendMap = {};
+        for (let i = 5; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            const label = `Tháng ${d.getMonth() + 1}`;
+            monthlyTrendMap[key] = { month: key, label, amount: 0, count: 0 };
         }
+        sixMonthExpenses.forEach(e => {
+            const k = `${e.createdAt.getFullYear()}-${String(e.createdAt.getMonth() + 1).padStart(2, '0')}`;
+            if (monthlyTrendMap[k]) {
+                monthlyTrendMap[k].amount += e.amount;
+                monthlyTrendMap[k].count++;
+            }
+        });
+        const monthlyTrend = Object.values(monthlyTrendMap);
 
-        // Query BlockchainTx thay vì expense.txHash
-        const reimbursedStats = await prisma.expense.aggregate({
-            where: { status: 'REIMBURSED' },
-            _count: { id: true },
-            _sum: { amount: true },
+        // Phân bổ danh mục đã chuẩn hóa (gộp hotel và hotel_receipt về tiếng Việt)
+        const catMap = {};
+        categoryExpenses.forEach(e => {
+            const norm = normalizeCategory(e.invoiceType);
+            if (!catMap[norm.code]) {
+                catMap[norm.code] = { code: norm.code, name: norm.name, amount: 0, count: 0 };
+            }
+            catMap[norm.code].amount += e.amount;
+            catMap[norm.code].count++;
+        });
+        const byCategory = Object.values(catMap).sort((a, b) => b.amount - a.amount);
+
+        // Tính toán chỉ số Giám sát Rủi ro AI (AI Fraud Radar)
+        const totalAnalyzed = fraudAnalyses.length;
+        let highRiskCount = 0;   // >= 50
+        let mediumRiskCount = 0; // 20 - 49
+        let lowRiskCount = 0;    // < 20
+        let nightExpenses = 0;
+        let roundedAmounts = 0;
+
+        fraudAnalyses.forEach(f => {
+            const score = f.fraudScore || 0;
+            if (score >= 50) highRiskCount++;
+            else if (score >= 20) mediumRiskCount++;
+            else lowRiskCount++;
+
+            if (Array.isArray(f.fraudFlags)) {
+                if (f.fraudFlags.includes('NIGHT_EXPENSE') || f.fraudFlags.includes('NIGHT_TIME_RESTAURANT')) nightExpenses++;
+                if (f.fraudFlags.includes('ROUNDED_AMOUNT') || f.fraudFlags.includes('ROUNDED_TAXI_AMOUNT')) roundedAmounts++;
+            }
         });
 
-        const recentTransactions = await prisma.expense.findMany({
-            where: {
-                status: 'REIMBURSED',
-                blockchainTx: { txHash: { not: null } },
-            },
-            include: {
-                user: { select: { name: true, department: { select: { name: true } } } },
-                blockchainTx: { select: { txHash: true, gasUsed: true, createdAt: true } },
-            },
-            orderBy: { createdAt: 'desc' },
-            take: 10,
-        });
+        const complianceRate = totalAnalyzed > 0
+            ? Math.round(((totalAnalyzed - highRiskCount) / totalAnalyzed) * 100)
+            : 100;
+
+        const fraudRadar = {
+            totalAnalyzed,
+            complianceRate,
+            lowRiskCount,
+            mediumRiskCount,
+            highRiskCount,
+            nightExpenses,
+            roundedAmounts,
+        };
 
         const stats = {
             overview: {
@@ -91,31 +175,35 @@ router.get('/dashboard', requireAdmin, async (req, res, next) => {
                 totalTrips,
                 totalExpenses: statusCounts.reduce((sum, s) => sum + s._count.id, 0),
                 totalAmount: totalApprovedAmount,
+                fraudSuspectCount: highRiskCount,
             },
+            fraudRadar,
             byStatus: statusCounts.map(s => ({
                 status: s.status,
                 count: s._count.id,
                 amount: s._sum.amount || 0,
             })),
+            byCategory,
             monthly: {
                 count: monthlyTotalExpenses._count.id,
                 amount: monthlyApprovedExpenses._sum.amount || 0,
                 approvedCount: monthlyApprovedExpenses._count.id,
             },
+            monthlyTrend,
+            pendingActionQueue: pendingExpenses.map(p => ({
+                id: p.id,
+                amount: p.amount,
+                userName: p.user?.name || 'Ẩn danh',
+                department: p.user?.department?.name || 'Chưa phân phòng',
+                createdAt: p.createdAt,
+                fraudScore: p.fraudAnalysis?.fraudScore || 0,
+                categoryName: getCategoryLabel(p.invoiceType),
+            })),
             blockchain: {
-                connected: blockchainConnected,
+                connected: isBlockchainReady(),
                 companyPoolBalance,
                 totalReimbursed: reimbursedStats._sum.amount || 0,
                 txCount: reimbursedStats._count.id || 0,
-                recentTransactions: recentTransactions.map(tx => ({
-                    id: tx.id,
-                    amount: tx.amount,
-                    txHash: tx.blockchainTx?.txHash,
-                    invoiceType: tx.invoiceType,
-                    userName: tx.user?.name,
-                    department: tx.user?.department?.name,
-                    createdAt: tx.createdAt,
-                })),
             },
         };
 
@@ -130,7 +218,7 @@ router.get('/dashboard', requireAdmin, async (req, res, next) => {
  */
 router.get('/expenses', requireManager, async (req, res, next) => {
     try {
-        const { page = 1, limit = 20, status, departmentId } = req.query;
+        const { page = 1, limit = 20, status, departmentId, q } = req.query;
         const skip = (parseInt(page) - 1) * parseInt(limit);
 
         const where = {};
@@ -146,6 +234,16 @@ router.get('/expenses', requireManager, async (req, res, next) => {
         }
 
         if (status) where.status = status;
+
+        if (q && q.trim()) {
+            const searchKeyword = q.trim();
+            where.OR = [
+                { user: { name: { contains: searchKeyword, mode: 'insensitive' } } },
+                { user: { email: { contains: searchKeyword, mode: 'insensitive' } } },
+                { invoiceType: { contains: searchKeyword, mode: 'insensitive' } },
+                { trip: { destination: { contains: searchKeyword, mode: 'insensitive' } } },
+            ];
+        }
 
         const [expenses, total] = await Promise.all([
             prisma.expense.findMany({
@@ -360,7 +458,7 @@ router.delete('/users/:id', requireManager, async (req, res, next) => {
 /**
  * GET /api/admin/departments/list — Danh sách phòng ban
  */
-router.get('/departments/list', requireAdmin, async (req, res, next) => {
+router.get('/departments/list', requireManager, async (req, res, next) => {
     try {
         const departments = await prisma.department.findMany({
             include: { _count: { select: { users: true } } },
@@ -486,7 +584,7 @@ router.get('/audit-logs', requireAdmin, async (req, res, next) => {
  */
 router.post('/users', requireManager, async (req, res, next) => {
     try {
-        const { name, email, password, role } = req.body;
+        const { name, email, password, role, walletAddress } = req.body;
         let { departmentId } = req.body;
 
         if (!name || !email || !password) {
@@ -510,7 +608,7 @@ router.post('/users', requireManager, async (req, res, next) => {
         const { hash } = await import('bcrypt');
         const hashedPassword = await hash(password, 10);
 
-        const newWalletAddress = ethers.Wallet.createRandom().address;
+        const newWalletAddress = walletAddress?.trim() || null;
 
         const newUser = await prisma.user.create({
             data: {
@@ -521,15 +619,17 @@ router.post('/users', requireManager, async (req, res, next) => {
                 departmentId: departmentId || null,
                 departmentSelfSelected: false,
                 walletAddress: newWalletAddress,
-                wallet: {
-                    create: { address: newWalletAddress, balance: 0 }
-                }
+                ...(newWalletAddress ? {
+                    wallet: {
+                        create: { address: newWalletAddress, balance: 0 }
+                    }
+                } : {})
             },
             select: { id: true, name: true, email: true, role: true, createdAt: true, walletAddress: true }
         });
 
-        // Tự động đăng ký blockchain
-        if (isBlockchainReady() && newUser.role !== 'ADMIN') {
+        // Tự động đăng ký blockchain (nếu có chỉ định ví sẵn)
+        if (newWalletAddress && isBlockchainReady() && newUser.role !== 'ADMIN') {
             try {
                 await registerEmployeeOnChain(newWalletAddress, newUser.role);
             } catch (err) {
@@ -548,6 +648,106 @@ router.post('/users', requireManager, async (req, res, next) => {
         });
 
         res.status(201).json({ success: true, data: newUser });
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * POST /api/admin/users/bulk — Thêm danh sách nhân viên hàng loạt (Admin hoặc Manager)
+ */
+router.post('/users/bulk', requireManager, async (req, res, next) => {
+    try {
+        const { users, defaultPassword, defaultDepartmentId, defaultRole } = req.body;
+
+        if (!Array.isArray(users) || users.length === 0) {
+            return res.status(400).json({ success: false, error: 'Danh sách nhân viên không hợp lệ hoặc rỗng' });
+        }
+
+        let targetDeptId = defaultDepartmentId || null;
+        let targetRole = defaultRole || 'EMPLOYEE';
+
+        // Manager chỉ được tạo EMPLOYEE và chỉ gán vào phòng ban của Manager
+        if (req.user.role === 'MANAGER') {
+            targetRole = 'EMPLOYEE';
+            const manager = await prisma.user.findUnique({ where: { id: req.user.id } });
+            targetDeptId = manager?.departmentId || null;
+        }
+
+        const commonPassword = defaultPassword || 'employee123';
+        const { hash } = await import('bcrypt');
+        const defaultHashedPassword = await hash(commonPassword, 10);
+
+        const createdUsers = [];
+        const skippedUsers = [];
+
+        for (const item of users) {
+            const name = item.name?.trim();
+            const email = item.email?.trim().toLowerCase();
+
+            if (!name || !email) {
+                skippedUsers.push({ email: email || '—', name: name || '—', reason: 'Thiếu tên hoặc email' });
+                continue;
+            }
+
+            // Kiểm tra email trùng
+            const existing = await prisma.user.findUnique({ where: { email } });
+            if (existing) {
+                skippedUsers.push({ email, name, reason: 'Email đã tồn tại' });
+                continue;
+            }
+
+            const itemPassword = item.password ? await hash(item.password, 10) : defaultHashedPassword;
+            const itemDeptId = req.user.role === 'MANAGER' ? targetDeptId : (item.departmentId || targetDeptId);
+            const itemRole = req.user.role === 'MANAGER' ? 'EMPLOYEE' : (item.role || targetRole);
+
+            try {
+                const newUser = await prisma.user.create({
+                    data: {
+                        name,
+                        email,
+                        password: itemPassword,
+                        role: itemRole,
+                        departmentId: itemDeptId,
+                        departmentSelfSelected: false,
+                        walletAddress: null,
+                    },
+                    select: { id: true, name: true, email: true, role: true, departmentId: true },
+                });
+                createdUsers.push(newUser);
+            } catch (createErr) {
+                skippedUsers.push({ email, name, reason: createErr.message });
+            }
+        }
+
+        if (createdUsers.length > 0) {
+            try {
+                await prisma.auditLog.create({
+                    data: {
+                        action: 'BULK_CREATE_USERS',
+                        entity: 'User',
+                        entityId: req.user.id,
+                        userId: req.user.id,
+                        details: {
+                            count: createdUsers.length,
+                            skipped: skippedUsers.length,
+                            emails: createdUsers.map(u => u.email),
+                        },
+                    },
+                });
+            } catch {}
+        }
+
+        res.status(201).json({
+            success: true,
+            message: `Đã tạo thành công ${createdUsers.length} nhân viên${skippedUsers.length > 0 ? ` (Bỏ qua ${skippedUsers.length} mục trùng hoặc lỗi)` : ''}`,
+            data: {
+                createdCount: createdUsers.length,
+                skippedCount: skippedUsers.length,
+                createdUsers,
+                skippedUsers,
+            },
+        });
     } catch (error) {
         next(error);
     }
@@ -663,10 +863,10 @@ router.get('/reports/personal', async (req, res, next) => {
             byMonth[key].count++;
         });
 
-        // By category
+        // By category (chuẩn hóa danh mục tiếng Việt, gộp hotel và hotel_receipt)
         const byCategory = {};
         expenses.forEach(e => {
-            const cat = e.invoiceType || 'Khác';
+            const cat = normalizeCategory(e.invoiceType).name;
             if (!byCategory[cat]) byCategory[cat] = { total: 0, count: 0 };
             byCategory[cat].total += e.amount;
             byCategory[cat].count++;
@@ -693,6 +893,25 @@ router.get('/reports/personal', async (req, res, next) => {
 router.get('/reports/department', requireManager, async (req, res, next) => {
     try {
         let departmentId = req.query.departmentId || null;
+        const period = req.query.period || 'all'; // 'this_month' | 'last_month' | 'this_quarter' | 'all'
+        const customStartDate = req.query.startDate ? new Date(req.query.startDate) : null;
+        const customEndDate = req.query.endDate ? new Date(req.query.endDate) : null;
+
+        let dateFilter = {};
+        const now = new Date();
+        if (customStartDate && customEndDate) {
+            dateFilter = { gte: customStartDate, lte: customEndDate };
+        } else if (period === 'this_month') {
+            dateFilter = { gte: new Date(now.getFullYear(), now.getMonth(), 1) };
+        } else if (period === 'last_month') {
+            dateFilter = {
+                gte: new Date(now.getFullYear(), now.getMonth() - 1, 1),
+                lt: new Date(now.getFullYear(), now.getMonth(), 1),
+            };
+        } else if (period === 'this_quarter') {
+            const currentQuarter = Math.floor(now.getMonth() / 3);
+            dateFilter = { gte: new Date(now.getFullYear(), currentQuarter * 3, 1) };
+        }
 
         // Manager chỉ xem phòng ban mình
         if (req.user.role === 'MANAGER') {
@@ -711,8 +930,13 @@ router.get('/reports/department', requireManager, async (req, res, next) => {
         });
         const userIds = users.map(u => u.id);
 
+        const expenseWhere = {
+            userId: { in: userIds },
+            ...(Object.keys(dateFilter).length > 0 ? { createdAt: dateFilter } : {}),
+        };
+
         const expenses = await prisma.expense.findMany({
-            where: { userId: { in: userIds } },
+            where: expenseWhere,
             select: { amount: true, status: true, createdAt: true, invoiceType: true, userId: true },
         });
 
@@ -731,10 +955,10 @@ router.get('/reports/department', requireManager, async (req, res, next) => {
             byMonth[key].count++;
         });
 
-        // By category
+        // By category (chuẩn hóa danh mục tiếng Việt, gộp hotel và hotel_receipt)
         const byCategory = {};
         expenses.forEach(e => {
-            const cat = e.invoiceType || 'Khác';
+            const cat = normalizeCategory(e.invoiceType).name;
             if (!byCategory[cat]) byCategory[cat] = { total: 0, count: 0 };
             byCategory[cat].total += e.amount;
             byCategory[cat].count++;
@@ -753,11 +977,20 @@ router.get('/reports/department', requireManager, async (req, res, next) => {
             };
         });
 
-        // Department name
+        // Department name & estimated budget
         let departmentName = 'Tất cả phòng ban';
+        let budgetLimit = null;
         if (departmentId) {
             const dept = await prisma.department.findUnique({ where: { id: departmentId } });
             departmentName = dept?.name || departmentId;
+
+            // Tính định mức ngân sách công tác phòng ban dựa theo policy
+            const policyLimits = await prisma.policyLimit.findMany();
+            const managerLimit = policyLimits.find(p => p.role === 'MANAGER')?.totalPerTripLimit || 30000000;
+            const empLimit = policyLimits.find(p => p.role === 'EMPLOYEE')?.totalPerTripLimit || 15000000;
+            const mgrCount = users.filter(u => u.role === 'MANAGER').length;
+            const empCount = users.filter(u => u.role === 'EMPLOYEE').length;
+            budgetLimit = (mgrCount * managerLimit) + (empCount * empLimit);
         }
 
         res.json({
@@ -769,6 +1002,7 @@ router.get('/reports/department', requireManager, async (req, res, next) => {
                     totalExpenses: expenses.length,
                     totalAmount,
                     approved, rejected, pending, reimbursed,
+                    budgetLimit,
                 },
                 employees: employeeStats,
                 byMonth: Object.entries(byMonth).map(([month, v]) => ({ month, ...v })).sort((a, b) => a.month.localeCompare(b.month)),
@@ -810,7 +1044,7 @@ router.get('/blockchain', requireAdmin, async (req, res, next) => {
 /**
  * GET /api/admin/domains — Lấy danh sách domain Google SSO được phép truy cập
  */
-router.get('/domains', requireAdmin, (req, res) => {
+router.get('/domains', requireManager, (req, res) => {
     try {
         const domains = getAllowedDomains();
         res.json({ success: true, data: domains });
@@ -864,6 +1098,39 @@ router.delete('/domains/:domain', requireAdmin, async (req, res) => {
         res.json({ success: true, message: `Đã xóa tên miền @${domain}`, data: updated });
     } catch (err) {
         res.status(400).json({ success: false, error: err.message });
+    }
+});
+
+/**
+ * GET /api/admin/company — Lấy thông tin định danh công ty
+ */
+router.get('/company', requireManager, (req, res) => {
+    try {
+        const info = getCompanyInfo();
+        res.json({ success: true, data: info });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * PUT /api/admin/company — Cập nhật thông tin công ty (Admin only)
+ */
+router.put('/company', requireAdmin, async (req, res) => {
+    try {
+        const updated = updateCompanyInfo(req.body);
+        try {
+            await prisma.auditLog.create({
+                data: {
+                    userId: req.user.id,
+                    action: 'UPDATE_COMPANY_INFO',
+                    details: `Cập nhật thông tin công ty: ${updated.companyName}`,
+                },
+            });
+        } catch {}
+        res.json({ success: true, message: 'Cập nhật thông tin công ty thành công', data: updated });
+    } catch (error) {
+        res.status(400).json({ success: false, error: error.message });
     }
 });
 

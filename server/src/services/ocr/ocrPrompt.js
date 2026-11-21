@@ -18,14 +18,22 @@ YÊU CẦU:
 7. Mã số thuế người bán (nếu có) đặt trong trường "tax_id".
 8. Chỉ trả về những gì THỰC SỰ có trên hóa đơn — KHÔNG bịa thêm thông tin không tồn tại.
 9. Nếu không đọc rõ một giá trị, ghi null thay vì đoán.
-10. Tự phát hiện loại hóa đơn và thêm trường "invoice_type" (ví dụ: "restaurant", "hotel", "supermarket", "taxi", "fuel", "airline", "medical", "other").
-11. Đóng vai trò chuyên gia chống gian lận (Fraud Detection), thêm một trường "fraud_analysis" là một Object chứa:
+10. Tự phát hiện loại hóa đơn và điền vào "invoice_type", CHỈ ĐƯỢC CHỌN 1 TRONG CÁC MÃ CỐ ĐỊNH SAU (dùng đúng chữ thường, KHÔNG tự ý chế thêm hậu tố như _receipt hay _bill):
+   - "hotel": Khách sạn, nhà nghỉ, lưu trú
+   - "restaurant": Nhà hàng, ăn uống, quán ăn, cafe
+   - "taxi": Di chuyển, taxi, grab, xe công nghệ, vé xe, vé tàu
+   - "flight": Vé máy bay, hàng không
+   - "fuel": Nhiên liệu, xăng dầu
+   - "office": Văn phòng phẩm, thiết bị làm việc
+   - "other": Chi phí khác không thuộc các nhóm trên.
+11. Đóng vai trò chuyên gia kiểm toán và chống gian lận (Fraud Detection), thêm một trường "fraud_analysis" là một Object chứa:
    - "score": (Number 0-100) Thể hiện xác suất hóa đơn này là giả mạo, bị chỉnh sửa hoặc tạo bằng AI. Càng cao càng đáng ngờ.
-   - "flags": (Array of Strings) Danh sách các lý do nghi ngờ (nếu có, không có thì để mảng rỗng). Phải xem xét các dấu hiệu: 
+   - "flags": (Array of Strings) BẮT BUỘC: Tất cả các lý do nghi ngờ trong mảng này PHẢI VIẾT HOÀN TOÀN BẰNG TIẾNG VIỆT 100% (TUYỆT ĐỐI KHÔNG DÙNG TIẾNG ANH). Phải xem xét các dấu hiệu: 
       + Dấu hiệu chỉnh sửa bằng Photoshop (pixel lệch, màu không đều, font chữ không đồng nhất).
-      + Hóa đơn tạo HOÀN TOÀN bằng AI (Synthetic Image/DALL-E) (bố cục quá hoàn hảo, hallucinated text/ký tự bị méo mó vô nghĩa, không có nếp gấp hay bóng đổ tự nhiên của giấy).
-      + Thông tin phi logic (Ví dụ: VAT tính sai so với tổng tiền, địa chỉ/MST mâu thuẫn).
-12. Nếu có dấu hiệu gian lận nào, hãy điền đầy đủ vào "flags" và cho "score" > 50. Nếu hóa đơn trông hoàn toàn bình thường, thực tế, "score" = 0.
+      + Hóa đơn tạo HOÀN TOÀN bằng AI (Synthetic Image/DALL-E) (bố cục quá hoàn hảo, ký tự méo mó vô nghĩa, không có nếp gấp hay bóng đổ tự nhiên của giấy).
+      + Thông tin phi logic (Ví dụ: tổng các món cộng lại không khớp với tổng tiền, đơn vị tính bất hợp lý như thuốc lá ghi 'ly', VAT tính sai).
+      + Mặt hàng không thuộc diện thanh toán công tác phí doanh nghiệp: thuốc lá, xì gà, đồ uống có cồn nồng độ cao, dịch vụ giải trí cá nhân (karaoke, massage, bar).
+12. Nếu có dấu hiệu gian lận hoặc bất thường, hãy điền đầy đủ lý do BẰNG TIẾNG VIỆT vào "flags" và cho "score" phù hợp (từ 20 đến 100 tùy mức độ). Nếu hóa đơn hoàn toàn bình thường và hợp lệ, "score" = 0 và "flags" = [].
 
 VÍ DỤ TRƯỜNG CÓ THỂ CÓ (tùy loại hóa đơn):
 - store_name, store_address, store_phone, tax_id

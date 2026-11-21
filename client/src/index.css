@@ -278,6 +278,8 @@ select {
   border-radius: 20px;
   font-size: 12px;
   font-weight: 600;
+  white-space: nowrap;
+  line-height: 1.4;
 }
 
 .badge-success {
@@ -306,6 +308,12 @@ select {
 }
 
 /* ── Tables ── */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .data-table {
   width: 100%;
   border-collapse: collapse;
@@ -320,12 +328,14 @@ select {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
 }
 
 .data-table td {
   padding: 14px 16px;
   font-size: 14px;
   border-bottom: 1px solid rgba(241, 245, 249, 0.4);
+  vertical-align: middle;
 }
 
 .data-table tbody tr {

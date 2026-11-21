@@ -1,15 +1,15 @@
 /* ── Sidebar — Frosted Glass ── */
 
 .sidebar {
-    width: var(--sidebar-width);
+    width: var(--sidebar-width, 260px);
     height: 100vh;
     position: fixed;
     top: 0;
     left: 0;
-    background: var(--color-bg-sidebar);
+    background: var(--color-bg-sidebar, rgba(255, 255, 255, 0.88));
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border-right: 1px solid rgba(203, 213, 225, 0.3);
+    border-right: 1px solid rgba(203, 213, 225, 0.35);
     display: flex;
     flex-direction: column;
     z-index: 10;
@@ -17,53 +17,90 @@
 
 /* Logo */
 .sidebar__logo {
-    padding: 20px 24px;
+    padding: 22px 24px;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     border-bottom: 1px solid rgba(203, 213, 225, 0.25);
 }
 
 .sidebar__logo-img {
-    width: 32px;
-    height: 32px;
+    width: 44px;
+    height: 44px;
     object-fit: contain;
 }
 
 .sidebar__logo-text {
-    font-size: 20px;
-    font-weight: 700;
-    color: var(--color-primary);
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    display: inline-flex;
+    align-items: center;
 }
 
-/* Nav links */
+.sidebar__logo-flexi {
+    color: #1e293b;
+    /* Slate đậm thanh lịch */
+}
+
+.sidebar__logo-trip {
+    color: var(--color-primary, #2b9e9e);
+    /* Xanh teal nhận diện công nghệ FlexiTrip */
+}
+
+/* Nav links & Sections */
 .sidebar__nav {
     flex: 1;
     padding: 12px;
     overflow-y: auto;
 }
 
+.sidebar__section {
+    margin-bottom: 14px;
+}
+
+.sidebar__section-title {
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-text-muted, #94a3b8);
+    padding: 8px 12px 4px;
+    user-select: none;
+}
+
+.sidebar__section:first-child .sidebar__section-title {
+    padding-top: 2px;
+}
+
+.sidebar__section-items {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
 .sidebar__link {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 10px 14px;
-    border-radius: var(--radius-sm);
-    font-size: 14px;
+    padding: 9px 14px;
+    border-radius: var(--radius-sm, 8px);
+    font-size: 13.5px;
     font-weight: 500;
-    color: var(--color-text-secondary);
-    transition: all var(--transition);
+    color: var(--color-text-secondary, #475569);
+    transition: all var(--transition, 0.2s ease);
     margin-bottom: 2px;
+    text-decoration: none;
 }
 
 .sidebar__link:hover {
     background: rgba(238, 242, 247, 0.6);
-    color: var(--color-text);
+    color: var(--color-text, #0f172a);
 }
 
 .sidebar__link--active {
-    background: var(--color-accent-bg);
-    color: var(--color-accent);
+    background: var(--color-accent-bg, rgba(43, 158, 158, 0.12));
+    color: var(--color-accent, #0f766e);
     font-weight: 600;
 }
 
@@ -98,8 +135,8 @@
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: var(--color-accent-bg);
-    color: var(--color-primary);
+    background: var(--color-accent-bg, rgba(43, 158, 158, 0.12));
+    color: var(--color-primary, #2b9e9e);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -116,7 +153,7 @@
 .sidebar__user-name {
     font-size: 13px;
     font-weight: 600;
-    color: var(--color-text);
+    color: var(--color-text, #0f172a);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -124,22 +161,24 @@
 
 .sidebar__user-role {
     font-size: 11px;
-    color: var(--color-text-muted);
+    color: var(--color-text-muted, #94a3b8);
 }
 
 .sidebar__logout {
     padding: 8px;
     background: transparent;
-    border-radius: var(--radius-sm);
-    color: var(--color-text-muted);
-    transition: all var(--transition);
+    border: none;
+    border-radius: var(--radius-sm, 8px);
+    color: var(--color-text-muted, #94a3b8);
+    transition: all var(--transition, 0.2s ease);
     display: flex;
     align-items: center;
+    cursor: pointer;
 }
 
 .sidebar__logout:hover {
-    background: var(--color-danger-bg);
-    color: var(--color-danger);
+    background: var(--color-danger-bg, rgba(239, 68, 68, 0.1));
+    color: var(--color-danger, #ef4444);
 }
 
 /* ── Mobile: ≤768px ── */

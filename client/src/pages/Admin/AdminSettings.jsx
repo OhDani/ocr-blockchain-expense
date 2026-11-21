@@ -5,7 +5,7 @@
 import { useState, useEffect } from 'react';
 import { adminAPI } from '../../api/client.js';
 import { useToast } from '../../context/ToastContext.jsx';
-import { Settings, Users, Shield, History, Plus, Save, Trash2, ShieldAlert, Globe, ShieldCheck } from 'lucide-react';
+import { Settings, Users, Shield, History, Plus, Save, Trash2, ShieldAlert, Globe, ShieldCheck, Building2 } from 'lucide-react';
 import './AdminSettings.css';
 
 const formatNumber = (val) => {
@@ -26,6 +26,9 @@ export default function AdminSettings() {
             </div>
 
             <div className="settings-tabs">
+                <button className={`settings-tab ${activeTab === 'company' ? 'active' : ''}`} onClick={() => setActiveTab('company')}>
+                    <Building2 size={16} /> Thông tin doanh nghiệp
+                </button>
                 <button className={`settings-tab ${activeTab === 'policy' ? 'active' : ''}`} onClick={() => setActiveTab('policy')}>
                     <Shield size={16} /> Hạn mức chi tiêu
                 </button>
@@ -41,6 +44,7 @@ export default function AdminSettings() {
             </div>
 
             <div className="card">
+                {activeTab === 'company' && <CompanyTab toast={toast} />}
                 {activeTab === 'policy' && <PolicyTab toast={toast} />}
                 {activeTab === 'departments' && <DepartmentsTab toast={toast} />}
                 {activeTab === 'domains' && <DomainsTab toast={toast} />}
@@ -298,11 +302,8 @@ function AuditLogTab({ toast }) {
                                 </div>
                                 <div style={{ flex: 1 }}>
                                     <div style={{ fontWeight: 500, fontSize: 14 }}>{log.user?.name || 'Hệ thống'} <span style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>({log.user?.email})</span></div>
-                                    <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 4 }}>
-                                        Đối tượng: <code style={{ background: 'rgba(0,0,0,0.05)', padding: '2px 6px', borderRadius: 4 }}>{log.entity} #{log.entityId?.substring(0, 8)}</code>
-                                    </div>
                                     {detailStr && (
-                                        <div style={{ marginTop: 8, fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                                        <div style={{ marginTop: 6, fontSize: 13, color: 'var(--color-text-secondary)' }}>
                                             {detailStr}
                                         </div>
                                     )}
@@ -496,6 +497,138 @@ function DomainsTab({ toast }) {
                     ))}
                 </div>
             </div>
+        </div>
+    );
+}
+
+function CompanyTab({ toast }) {
+    const [form, setForm] = useState({
+        companyName: '',
+        taxCode: '',
+        address: '',
+        email: '',
+        phone: '',
+        website: '',
+    });
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        adminAPI.company()
+            .then(res => {
+                if (res.data) setForm(res.data);
+            })
+            .catch(err => toast(err.message, 'error'))
+            .finally(() => setLoading(false));
+    }, [toast]);
+
+    const handleSave = async (e) => {
+        e.preventDefault();
+        setSaving(true);
+        try {
+            const res = await adminAPI.updateCompany(form);
+            toast('Đã cập nhật thông tin doanh nghiệp thành công!', 'success');
+            if (res.data) setForm(res.data);
+        } catch (err) {
+            toast(err.message || 'Lỗi khi cập nhật', 'error');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    if (loading) return <div className="loading-center"><div className="spinner" /></div>;
+
+    return (
+        <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                <div>
+                    <h3 style={{ margin: 0, fontSize: 16 }}>Định danh doanh nghiệp (Enterprise Identity)</h3>
+                    <p style={{ margin: '4px 0 0', color: 'var(--color-text-muted)', fontSize: 13 }}>
+                        Thông tin doanh nghiệp sẽ tự động hiển thị trên toàn bộ biểu mẫu báo cáo tài chính (PDF, Excel, bản in).
+                    </p>
+                </div>
+                <span className="badge badge-success">Dedicated Instance</span>
+            </div>
+
+            <form onSubmit={handleSave} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, maxWidth: 800 }}>
+                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                    <label>Tên doanh nghiệp / Đơn vị chủ quản *</label>
+                    <input
+                        type="text"
+                        required
+                        className="form-input"
+                        placeholder="VD: Công ty Cổ phần Công nghệ VKU Global"
+                        value={form.companyName}
+                        onChange={(e) => setForm({ ...form, companyName: e.target.value })}
+                    />
+                </div>
+
+                <div className="form-group">
+                    <label>Mã số thuế (MST)</label>
+                    <input
+                        type="text"
+                        className="form-input"
+                        placeholder="VD: 0402123456"
+                        value={form.taxCode || ''}
+                        onChange={(e) => setForm({ ...form, taxCode: e.target.value })}
+                    />
+                </div>
+
+                <div className="form-group">
+                    <label>Số điện thoại liên hệ</label>
+                    <input
+                        type="text"
+                        className="form-input"
+                        placeholder="VD: 0236 3667 117"
+                        value={form.phone || ''}
+                        onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    />
+                </div>
+
+                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                    <label>Địa chỉ trụ sở chính</label>
+                    <input
+                        type="text"
+                        className="form-input"
+                        placeholder="VD: 470 Đường Trần Đại Nghĩa, Khu đô thị Đại học Đà Nẵng"
+                        value={form.address || ''}
+                        onChange={(e) => setForm({ ...form, address: e.target.value })}
+                    />
+                </div>
+
+                <div className="form-group">
+                    <label>Email liên hệ công vụ</label>
+                    <input
+                        type="email"
+                        className="form-input"
+                        placeholder="VD: contact@vku.udn.vn"
+                        value={form.email || ''}
+                        onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    />
+                </div>
+
+                <div className="form-group">
+                    <label>Website doanh nghiệp</label>
+                    <input
+                        type="text"
+                        className="form-input"
+                        placeholder="VD: https://vku.udn.vn"
+                        value={form.website || ''}
+                        onChange={(e) => setForm({ ...form, website: e.target.value })}
+                    />
+                </div>
+
+                <div style={{ gridColumn: '1 / -1', marginTop: 12 }}>
+                    <button
+                        type="submit"
+                        className="btn btn-primary"
+                        disabled={saving}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                    >
+                        <Save size={15} /> {saving ? 'Đang lưu...' : 'Lưu thông tin doanh nghiệp'}
+                    </button>
+                </div>
+            </form>
         </div>
     );
 }

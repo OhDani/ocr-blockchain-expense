@@ -401,8 +401,10 @@ router.get('/wallet/status', async (req, res, next) => {
             data: {
                 hasWallet: true,
                 address: user.walletAddress,
+                walletAddress: user.walletAddress,
                 isRegisteredOnChain: isRegistered,
                 balance: vVNDBalance,
+                tokenBalance: vVNDBalance,
             },
         });
     } catch (error) {

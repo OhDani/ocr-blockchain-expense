@@ -325,7 +325,7 @@ export default function SettingsPage() {
                             )}
                         </div>
                     </div>
-                    {user.walletAddress && (
+                    {user?.role !== 'ADMIN' && user.walletAddress && (
                         <div className="detail-row">
                             <div className="detail-row__label"><Wallet size={14} /> Ví blockchain</div>
                             <div className="detail-row__value" style={{ fontSize: 12, fontFamily: 'monospace', wordBreak: 'break-all' }}>
@@ -336,8 +336,9 @@ export default function SettingsPage() {
                 </div>
             </div>
 
-            {/* Ví nhận tiền hoàn ứng (Blockchain) */}
-            <div className="card" style={{ marginBottom: 24 }}>
+            {/* Ví nhận tiền hoàn ứng (Blockchain) — Ẩn đối với Admin */}
+            {user?.role !== 'ADMIN' && (
+                <div className="card" style={{ marginBottom: 24 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
                     <h3 style={{ fontSize: 16, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
                         <Wallet size={18} /> Ví nhận tiền hoàn ứng (Blockchain)
@@ -524,6 +525,7 @@ export default function SettingsPage() {
                     </button>
                 </div>
             </div>
+            )}
 
             {/* Policy limits */}
             <div className="card" style={{ marginBottom: 24 }}>

@@ -4,10 +4,11 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { expenseAPI } from '../../api/client.js';
-import { FileText, Eye, Search, AlertCircle, Trash2 } from 'lucide-react';
+import { FileText, Eye, Search, AlertCircle, Trash2, X } from 'lucide-react';
 import ExpenseDetailModal from '../../components/ExpenseDetailModal/ExpenseDetailModal.jsx';
 import Pagination, { usePagination } from '../../components/Pagination/Pagination.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
+import { getCategoryLabel } from '../../utils/categoryHelper.js';
 
 const STATUS_MAP = {
     PENDING: { label: 'Chờ duyệt', className: 'badge-warning' },
@@ -95,28 +96,53 @@ export default function ExpensesPage() {
                 <h1>Lịch sử chi phí</h1>
             </div>
 
-            {/* Search & Filter bar */}
-            <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
-                <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
-                    <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }} />
-                    <input
-                        className="form-input"
-                        placeholder="Tìm kiếm theo loại, điểm đến..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        style={{ paddingLeft: 36, width: '100%' }}
-                    />
-                </div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                    {['', 'PENDING', 'APPROVED', 'REJECTED', 'REIMBURSED'].map((f) => (
-                        <button
-                            key={f}
-                            className={`btn btn-sm ${statusFilter === f ? 'btn-primary' : 'btn-secondary'}`}
-                            onClick={() => setStatusFilter(f)}
-                        >
-                            {f === '' ? 'Tất cả' : STATUS_MAP[f]?.label}
-                        </button>
-                    ))}
+            {/* Search & Filter Toolbar */}
+            <div className="card" style={{ padding: '12px 18px', marginBottom: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14 }}>
+                    <div style={{ position: 'relative', flex: 1, minWidth: 260, maxWidth: 420 }}>
+                        <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }} />
+                        <input
+                            className="form-input"
+                            placeholder="Tìm kiếm theo loại chi, điểm đến..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            style={{ paddingLeft: 36, paddingRight: search ? 32 : 12, width: '100%', height: 38, borderRadius: 8, fontSize: 13 }}
+                        />
+                        {search && (
+                            <button
+                                onClick={() => setSearch('')}
+                                style={{
+                                    position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                                    background: 'none', border: 'none', cursor: 'pointer', padding: 2,
+                                    color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center'
+                                }}
+                                title="Xóa tìm kiếm"
+                            >
+                                <X size={14} />
+                            </button>
+                        )}
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                        {['', 'PENDING', 'APPROVED', 'REJECTED', 'REIMBURSED'].map((f) => (
+                            <button
+                                key={f}
+                                onClick={() => setStatusFilter(f)}
+                                style={{
+                                    padding: '6px 12px',
+                                    borderRadius: 6,
+                                    fontSize: 12,
+                                    fontWeight: statusFilter === f ? 600 : 400,
+                                    border: statusFilter === f ? '1px solid var(--color-primary, #2b9e9e)' : '1px solid var(--color-border-light, #e2e8f0)',
+                                    background: statusFilter === f ? 'rgba(43,158,158,0.1)' : 'transparent',
+                                    color: statusFilter === f ? 'var(--color-primary, #2b9e9e)' : 'var(--color-text-muted)',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease',
+                                }}
+                            >
+                                {f === '' ? 'Tất cả' : STATUS_MAP[f]?.label}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </div>
 
@@ -131,57 +157,58 @@ export default function ExpensesPage() {
                 </div>
             ) : (
                 <div className="card">
-                    <table className="data-table">
-                        <thead>
-                            <tr>
-                                <th>Loại hóa đơn</th>
-                                <th>Số tiền</th>
-                                <th>Trạng thái</th>
-                                <th>Policy</th>
-                                <th>Chuyến</th>
-                                <th>Ngày</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {paginatedExpenses.map((exp) => {
-                                const status = STATUS_MAP[exp.status] || STATUS_MAP.PENDING;
-                                return (
-                                    <tr key={exp.id} style={{ cursor: 'pointer' }} onClick={() => setSelectedId(exp.id)}>
-                                        <td>{exp.invoiceType || '—'}</td>
-                                        <td style={{ fontWeight: 600 }}>{exp.amount.toLocaleString('vi-VN')}đ</td>
-                                        <td><span className={`badge ${status.className}`}>{status.label}</span></td>
-                                        <td>
-                                            <span className={`badge ${exp.policyStatus === 'VALID' ? 'badge-success' :
-                                                exp.policyStatus === 'OVER_BUDGET' ? 'badge-warning' : 'badge-danger'
-                                                }`}>
-                                                {exp.policyStatus === 'VALID' ? 'Hợp lệ' :
-                                                    exp.policyStatus === 'OVER_BUDGET' ? 'Vượt hạn mức' :
-                                                        exp.policyStatus === 'INVALID_TAX_ID' ? 'MST lỗi' : exp.policyStatus || '—'}
-                                            </span>
-                                        </td>
-                                        <td>{exp.trip?.destination || '—'}</td>
-                                        <td style={{ color: 'var(--color-text-muted)' }}>
-                                            {new Date(exp.createdAt).toLocaleDateString('vi-VN')}
-                                        </td>
-                                        <td>
-                                            <div style={{ display: 'flex', gap: 4 }}>
-                                                <button className="btn btn-sm btn-secondary" onClick={(e) => { e.stopPropagation(); setSelectedId(exp.id); }}>
-                                                    <Eye size={14} />
-                                                </button>
-                                                {exp.status === 'PENDING' && (
-                                                    <button
-                                                        className="btn btn-sm"
-                                                        style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: 'none' }}
-                                                        onClick={(e) => { e.stopPropagation(); handleDelete(exp.id); }}
-                                                        title="Xóa"
-                                                    >
-                                                        <Trash2 size={14} />
+                    <div className="table-responsive">
+                        <table className="data-table" style={{ minWidth: 740 }}>
+                            <thead>
+                                <tr>
+                                    <th style={{ minWidth: 120 }}>Loại hóa đơn</th>
+                                    <th style={{ minWidth: 100 }}>Số tiền</th>
+                                    <th style={{ minWidth: 125 }}>Trạng thái</th>
+                                    <th style={{ minWidth: 110 }}>Policy</th>
+                                    <th style={{ minWidth: 130 }}>Chuyến</th>
+                                    <th style={{ minWidth: 95 }}>Ngày</th>
+                                    <th style={{ minWidth: 60, textAlign: 'center' }}></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {paginatedExpenses.map((exp) => {
+                                    const status = STATUS_MAP[exp.status] || STATUS_MAP.PENDING;
+                                    return (
+                                        <tr key={exp.id} style={{ cursor: 'pointer' }} onClick={() => setSelectedId(exp.id)}>
+                                            <td style={{ whiteSpace: 'nowrap' }}>{getCategoryLabel(exp.invoiceType)}</td>
+                                            <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{exp.amount.toLocaleString('vi-VN')}đ</td>
+                                            <td style={{ whiteSpace: 'nowrap' }}><span className={`badge ${status.className}`}>{status.label}</span></td>
+                                            <td style={{ whiteSpace: 'nowrap' }}>
+                                                <span className={`badge ${exp.policyStatus === 'VALID' ? 'badge-success' :
+                                                    exp.policyStatus === 'OVER_BUDGET' ? 'badge-warning' : 'badge-danger'
+                                                    }`}>
+                                                    {exp.policyStatus === 'VALID' ? 'Hợp lệ' :
+                                                        exp.policyStatus === 'OVER_BUDGET' ? 'Vượt hạn mức' :
+                                                            exp.policyStatus === 'INVALID_TAX_ID' ? 'MST lỗi' : exp.policyStatus || '—'}
+                                                </span>
+                                            </td>
+                                            <td>{exp.trip?.destination || '—'}</td>
+                                            <td style={{ color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
+                                                {new Date(exp.createdAt).toLocaleDateString('vi-VN')}
+                                            </td>
+                                            <td>
+                                                <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
+                                                    <button className="btn btn-sm btn-secondary" onClick={(e) => { e.stopPropagation(); setSelectedId(exp.id); }}>
+                                                        <Eye size={14} />
                                                     </button>
-                                                )}
-                                                {exp.status === 'REJECTED' && !exp.appealNote && (
-                                                    <button
-                                                        className="btn btn-sm"
+                                                    {exp.status === 'PENDING' && (
+                                                        <button
+                                                            className="btn btn-sm"
+                                                            style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: 'none' }}
+                                                            onClick={(e) => { e.stopPropagation(); handleDelete(exp.id); }}
+                                                            title="Xóa"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    )}
+                                                    {exp.status === 'REJECTED' && !exp.appealNote && (
+                                                        <button
+                                                            className="btn btn-sm"
                                                         style={{ background: 'var(--color-warning)', color: 'white', border: 'none' }}
                                                         onClick={(e) => { e.stopPropagation(); setAppealModal({ id: exp.id }); }}
                                                         title="Khiếu nại"
@@ -196,7 +223,8 @@ export default function ExpensesPage() {
                             })}
                         </tbody>
                     </table>
-                    <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
+                </div>
+                <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
                 </div>
             )}
 

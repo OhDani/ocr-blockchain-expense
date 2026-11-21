@@ -12,9 +12,9 @@ export function getAssetUrl(path) {
 }
 
 /**
- * Gọi API với JWT token tự động.
+ * Gọi API với JWT token tự động và cơ chế auto-retry 1 lần nếu đứt kết nối mạng/socket.
  */
-async function request(endpoint, options = {}) {
+async function request(endpoint, options = {}, retries = 1) {
     const token = localStorage.getItem('token');
 
     const config = {
@@ -31,20 +31,30 @@ async function request(endpoint, options = {}) {
         delete config.headers['Content-Type'];
     }
 
-    const response = await fetch(`${API_BASE}${endpoint}`, config);
-    const data = await response.json();
+    try {
+        const response = await fetch(`${API_BASE}${endpoint}`, config);
+        const data = await response.json();
 
-    if (!response.ok) {
-        // Token hết hạn → logout (nhưng không áp dụng cho route đăng nhập)
-        if (response.status === 401 && endpoint !== '/auth/login') {
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            window.location.href = '/login';
+        if (!response.ok) {
+            // Token hết hạn → logout (nhưng không áp dụng cho route đăng nhập)
+            if (response.status === 401 && endpoint !== '/auth/login') {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                window.location.href = '/login';
+            }
+            throw new Error(data.error || 'Có lỗi xảy ra');
         }
-        throw new Error(data.error || 'Có lỗi xảy ra');
-    }
 
-    return data;
+        return data;
+    } catch (err) {
+        // Tự động thử lại 1 lần nếu gặp lỗi mạng rớt socket (Failed to fetch / connection reset)
+        const isNetworkError = err.name === 'TypeError' || err.message?.toLowerCase().includes('fetch');
+        const isUpload = options.body instanceof FormData;
+        if (retries > 0 && isNetworkError && !isUpload) {
+            return request(endpoint, options, retries - 1);
+        }
+        throw err;
+    }
 }
 
 // ──────── Auth ────────
@@ -168,6 +178,10 @@ export const adminAPI = {
 
     auditLogs: () => request('/admin/audit-logs'),
 
+    // Company Profile
+    company: () => request('/admin/company'),
+    updateCompany: (data) => request('/admin/company', { method: 'PUT', body: JSON.stringify(data) }),
+
     // Google SSO Domain Whitelist
     domains: () => request('/admin/domains'),
     addDomain: (domain) => request('/admin/domains', { method: 'POST', body: JSON.stringify({ domain }) }),
@@ -175,6 +189,7 @@ export const adminAPI = {
 
     users: () => request('/admin/users'),
     createUser: (data) => request('/admin/users', { method: 'POST', body: JSON.stringify(data) }),
+    bulkCreateUsers: (data) => request('/admin/users/bulk', { method: 'POST', body: JSON.stringify(data) }),
 
     updateUser: (id, data) =>
         request(`/admin/users/${id}`, {
@@ -190,7 +205,18 @@ export const adminAPI = {
 
     reports: () => request('/admin/reports'),
     reportsPersonal: () => request('/admin/reports/personal'),
-    reportsDepartment: (deptId) => request(`/admin/reports/department${deptId ? `?departmentId=${deptId}` : ''}`),
+    reportsDepartment: (deptIdOrParams, period) => {
+        let query = '';
+        if (typeof deptIdOrParams === 'object' && deptIdOrParams !== null) {
+            query = new URLSearchParams(deptIdOrParams).toString();
+        } else {
+            const p = {};
+            if (deptIdOrParams) p.departmentId = deptIdOrParams;
+            if (period && period !== 'all') p.period = period;
+            query = new URLSearchParams(p).toString();
+        }
+        return request(`/admin/reports/department${query ? `?${query}` : ''}`);
+    },
     blockchain: () => request('/admin/blockchain'),
 };
 

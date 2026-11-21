@@ -12,6 +12,7 @@ import {
 import { useToast } from '../../context/ToastContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import ExpenseDetailModal from '../../components/ExpenseDetailModal/ExpenseDetailModal.jsx';
+import { getCategoryLabel } from '../../utils/categoryHelper.js';
 
 const TRIP_STATUS = {
     PLANNED: { label: 'Đã lên kế hoạch', className: 'badge-info' },
@@ -727,7 +728,7 @@ export default function TripsPage() {
                                                             onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(238,242,247,0.5)'}
                                                         >
                                                             <div>
-                                                                <div style={{ fontWeight: 500, fontSize: 14 }}>{exp.invoiceType || 'Hóa đơn'}</div>
+                                                                <div style={{ fontWeight: 500, fontSize: 14 }}>{getCategoryLabel(exp.invoiceType)}</div>
                                                                 <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
                                                                     {new Date(exp.createdAt).toLocaleDateString('vi-VN')}
                                                                 </div>

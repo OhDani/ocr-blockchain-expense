@@ -70,12 +70,16 @@ app.use((err, req, res, next) => {
 });
 
 // ──────── Start Server ────────
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
     console.log(`\n🚀 FlexiTrip Server running at http://localhost:${PORT}`);
     console.log(`📝 API docs: http://localhost:${PORT}/api/health\n`);
 
     // Khởi tạo blockchain (không bắt buộc — server chạy được mà không có blockchain)
     initBlockchain();
 });
+
+// Chống lỗi 'Failed to fetch' (ECONNRESET/socket hang up) khi socket nhàn rỗi quá 5s
+server.keepAliveTimeout = 65000;
+server.headersTimeout = 66000;
 
 export default app;

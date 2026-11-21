@@ -1,155 +1,518 @@
-.dashboard {}
+/* ══════════════════════════════════════════════
+   DashboardPage.css — Phong cách Doanh nghiệp Hiện đại
+   Hài hòa cùng Design System chung của FlexiTrip
+   ══════════════════════════════════════════════ */
+
+.dashboard {
+    display: flex;
+    flex-direction: column;
+}
 
 .card__title {
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 600;
     margin-bottom: 16px;
     color: var(--color-text);
 }
 
-/* ── Welcome Banner ── */
+/* ── 1. Welcome Banner ── */
 .welcome-banner {
-    background: linear-gradient(135deg, #1a3a5c 0%, #2b9e9e 100%);
-    border-radius: var(--radius-lg);
-    padding: 28px 32px;
-    color: white;
+    background: linear-gradient(135deg, #132f4c 0%, #174b68 45%, #206d7d 100%);
+    border-radius: var(--radius-lg, 22px);
+    padding: 24px 28px;
+    color: #ffffff;
     position: relative;
     overflow: hidden;
-    margin-bottom: 24px;
-    box-shadow: 0 8px 32px rgba(26, 58, 92, 0.18);
+    margin-bottom: 18px;
+    box-shadow: 0 10px 30px rgba(19, 47, 76, 0.16);
 }
 
-/* Subtle animated shimmer */
 .welcome-banner::before {
     content: '';
     position: absolute;
-    top: -50%;
-    left: -50%;
-    width: 200%;
-    height: 200%;
-    background: radial-gradient(circle at 30% 40%, rgba(255, 255, 255, 0.06) 0%, transparent 60%),
-        radial-gradient(circle at 70% 80%, rgba(255, 255, 255, 0.04) 0%, transparent 50%);
-    animation: bannerShimmer 8s ease-in-out infinite alternate;
+    top: -40%;
+    right: -20%;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(59, 184, 184, 0.15) 0%, transparent 65%);
+    pointer-events: none;
 }
 
-@keyframes bannerShimmer {
-    0% {
-        transform: translate(0, 0);
-    }
-
-    100% {
-        transform: translate(-5%, 3%);
-    }
+.welcome-banner__top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: rgba(255, 255, 255, 0.7);
+    margin-bottom: 10px;
 }
 
-.welcome-banner__content {
+.welcome-banner__divider {
+    opacity: 0.4;
+}
+
+.welcome-banner__body {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
+    gap: 24px;
     position: relative;
     z-index: 1;
 }
 
-.welcome-banner__text {
+.welcome-banner__left {
     flex: 1;
-}
-
-.welcome-banner__greeting {
-    font-size: 13px;
-    opacity: 0.7;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    margin-bottom: 4px;
+    min-width: 0;
 }
 
 .welcome-banner__name {
     font-size: 26px;
     font-weight: 700;
+    letter-spacing: -0.4px;
     margin-bottom: 4px;
+    line-height: 1.25;
 }
 
 .welcome-banner__sub {
-    font-size: 14px;
-    opacity: 0.8;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.8);
+    margin-bottom: 16px;
 }
 
-.welcome-banner__cta {
-    background: rgba(255, 255, 255, 0.2) !important;
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.3) !important;
-    box-shadow: none !important;
-    color: white !important;
-    white-space: nowrap;
-}
-
-.welcome-banner__cta:hover {
-    background: rgba(255, 255, 255, 0.3) !important;
-    transform: translateY(-1px);
-}
-
-/* Pipeline steps */
-.welcome-banner__pipeline {
-    display: flex;
+/* Smart Action Digest Pill */
+.welcome-banner__digest {
+    display: inline-flex;
     align-items: center;
-    gap: 0;
-    margin-top: 20px;
-    padding-top: 18px;
-    border-top: 1px solid rgba(255, 255, 255, 0.15);
-    position: relative;
-    z-index: 1;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    font-weight: 500;
+    backdrop-filter: blur(8px);
+    transition: all 0.2s ease;
+    max-width: 100%;
 }
 
-.pipeline-step {
+.welcome-banner__digest--warning {
+    background: rgba(251, 191, 36, 0.18);
+    border: 1px solid rgba(251, 191, 36, 0.35);
+    color: #fef3c7;
+}
+
+.welcome-banner__digest--danger {
+    background: rgba(239, 68, 68, 0.22);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #fee2e2;
+}
+
+.welcome-banner__digest--success {
+    background: rgba(52, 211, 153, 0.18);
+    border: 1px solid rgba(52, 211, 153, 0.35);
+    color: #d1fae5;
+}
+
+.welcome-banner__digest--info {
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: #ffffff;
+}
+
+.welcome-banner__digest-icon {
+    flex-shrink: 0;
+}
+
+.welcome-banner__digest-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.welcome-banner__digest-link {
+    margin-left: 6px;
+    color: inherit;
+    font-weight: 600;
+    text-decoration: underline;
+    opacity: 0.95;
+    flex-shrink: 0;
+}
+
+.welcome-banner__digest-link:hover {
+    opacity: 1;
+}
+
+/* Right Section: Trip Chip & CTAs */
+.welcome-banner__right {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    flex: 1;
-    position: relative;
+    align-items: flex-end;
+    gap: 12px;
+    flex-shrink: 0;
 }
 
-.pipeline-step__value {
-    font-size: 24px;
-    font-weight: 700;
-    line-height: 1;
+.welcome-banner__trip-chip {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: var(--radius-sm, 10px);
+    padding: 10px 14px;
+    width: 270px;
+    font-size: 12px;
+}
+
+.welcome-banner__trip-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     margin-bottom: 4px;
 }
 
-.pipeline-step__label {
+.welcome-banner__trip-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    color: #ffffff;
+}
+
+.welcome-banner__trip-badge {
+    background: rgba(52, 211, 153, 0.25);
+    color: #a7f3d0;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 4px;
+}
+
+.welcome-banner__trip-meta {
+    display: flex;
+    justify-content: space-between;
     font-size: 11px;
-    opacity: 0.7;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    color: rgba(255, 255, 255, 0.7);
+    margin-bottom: 6px;
 }
 
-.pipeline-step__arrow {
-    position: absolute;
-    right: -4px;
-    top: 6px;
-    font-size: 16px;
-    opacity: 0.4;
+.welcome-banner__trip-percent {
+    font-weight: 600;
+    color: #ffffff;
 }
 
-/* Mobile */
-@media (max-width: 768px) {
-    .welcome-banner {
-        padding: 20px;
+.welcome-banner__trip-bar {
+    width: 100%;
+    height: 5px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 5px;
+}
+
+.welcome-banner__trip-progress {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.4s ease;
+}
+
+.welcome-banner__trip-budget {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.8);
+    text-align: right;
+}
+
+.welcome-banner__cta-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.welcome-banner__cta {
+    background: #ffffff !important;
+    color: var(--color-primary, #1a3a5c) !important;
+    border: none !important;
+    font-weight: 600 !important;
+    font-size: 13px !important;
+    padding: 8px 16px !important;
+    border-radius: 8px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12) !important;
+}
+
+.welcome-banner__cta:hover {
+    background: #f1f5f9 !important;
+    transform: translateY(-1px);
+}
+
+.welcome-banner__cta-sub {
+    background: rgba(255, 255, 255, 0.16) !important;
+    color: #ffffff !important;
+    border: 1px solid rgba(255, 255, 255, 0.28) !important;
+    font-weight: 500 !important;
+    font-size: 13px !important;
+    padding: 8px 14px !important;
+    border-radius: 8px !important;
+    backdrop-filter: blur(8px);
+}
+
+.welcome-banner__cta-sub:hover {
+    background: rgba(255, 255, 255, 0.26) !important;
+    transform: translateY(-1px);
+}
+
+/* ── 2. Card Ví Web3 Hoàn ứng ── */
+.wallet-card {
+    background: #ffffff;
+    border: 1px solid var(--color-border, rgba(203, 213, 225, 0.5));
+    border-radius: var(--radius-sm, 10px);
+    padding: 12px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+    box-shadow: var(--shadow-sm);
+    transition: all 0.2s ease;
+}
+
+.wallet-card--unlinked {
+    background: rgba(254, 243, 199, 0.35);
+    border-color: rgba(245, 158, 11, 0.3);
+}
+
+.wallet-card__left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+}
+
+.wallet-card__icon-wrap {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: rgba(43, 158, 158, 0.1);
+    color: var(--color-accent, #2b9e9e);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.wallet-card--unlinked .wallet-card__icon-wrap {
+    background: rgba(245, 158, 11, 0.12);
+    color: #f59e0b;
+}
+
+.wallet-card__info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.wallet-card__title-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 13px;
+}
+
+.wallet-card__label {
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.wallet-card__address-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.wallet-card__address {
+    font-family: monospace;
+    font-weight: 600;
+    color: var(--color-primary, #1a3a5c);
+    background: var(--color-bg, #eef2f7);
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.wallet-card__copy-btn {
+    background: none;
+    border: none;
+    padding: 2px;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s ease;
+}
+
+.wallet-card__copy-btn:hover {
+    color: var(--color-primary);
+}
+
+.wallet-card__network {
+    font-size: 11px;
+    color: var(--color-text-muted);
+    font-weight: 500;
+    background: rgba(0, 0, 0, 0.04);
+    padding: 1px 6px;
+    border-radius: 4px;
+}
+
+.wallet-card__warning-text {
+    font-size: 12.5px;
+    color: #b45309;
+}
+
+.wallet-card__right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-shrink: 0;
+}
+
+.wallet-card__balance-block {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.wallet-card__balance-label {
+    font-size: 11px;
+    color: var(--color-text-muted);
+}
+
+.wallet-card__balance-val {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--color-accent, #2b9e9e);
+}
+
+.wallet-card__balance-val small {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+}
+
+.wallet-card__action-btn {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-accent, #2b9e9e);
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    text-decoration: none;
+    transition: color 0.15s ease;
+}
+
+.wallet-card__action-btn:hover {
+    color: var(--color-primary);
+}
+
+/* ── 3. Donut Legend & Table Links ── */
+.status-legend-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px 12px;
+    padding-top: 14px;
+    margin-top: auto;
+    border-top: 1px solid var(--color-border-light, rgba(226, 232, 240, 0.5));
+}
+
+.status-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+}
+
+.status-legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.status-legend-label {
+    color: var(--color-text-secondary);
+    flex: 1;
+}
+
+.status-legend-count {
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.dashboard__view-all-link {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-accent, #2b9e9e);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    text-decoration: none;
+}
+
+.dashboard__view-all-link:hover {
+    color: var(--color-primary);
+}
+
+/* ── 4. Responsive ── */
+@media (max-width: 900px) {
+    .welcome-banner__body {
+        flex-direction: column;
+        align-items: stretch;
     }
 
-    .welcome-banner__content {
+    .welcome-banner__right {
+        align-items: flex-start;
+        width: 100%;
+    }
+
+    .welcome-banner__trip-chip {
+        width: 100%;
+    }
+
+    .wallet-card {
         flex-direction: column;
         align-items: flex-start;
-        gap: 16px;
+    }
+
+    .wallet-card__right {
+        width: 100%;
+        justify-content: space-between;
+        border-top: 1px solid var(--color-border-light, #f1f5f9);
+        padding-top: 8px;
+    }
+
+    .wallet-card__balance-block {
+        align-items: flex-start;
+    }
+}
+
+@media (max-width: 600px) {
+    .welcome-banner {
+        padding: 18px 16px;
     }
 
     .welcome-banner__name {
         font-size: 22px;
     }
 
-    .welcome-banner__pipeline {
-        gap: 4px;
+    .welcome-banner__digest {
+        flex-direction: column;
+        align-items: flex-start;
+        border-radius: 8px;
+        width: 100%;
     }
 
-    .pipeline-step__value {
-        font-size: 18px;
+    .welcome-banner__digest-link {
+        margin-left: 0;
+        margin-top: 4px;
     }
 }

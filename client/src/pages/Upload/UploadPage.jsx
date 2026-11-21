@@ -6,13 +6,15 @@ import { useState, useRef, useEffect } from 'react';
 import { tripAPI, expenseAPI } from '../../api/client.js';
 import {
     Upload, FileImage, RefreshCw, Rocket, CheckCircle,
-    ClipboardCheck, Bot, Link2, AlertTriangle, XCircle,
+    Bot, Link2, AlertTriangle, XCircle,
     Store, Hash, Calendar, Receipt, CreditCard, FileText,
-    PenLine, Zap,
+    PenLine, Zap, User, Users, Briefcase,
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
 import { compressImage, formatFileSize } from '../../utils/imageCompressor.js';
 import { getTxUrl } from '../../utils/explorer.js';
+import { getCategoryLabel } from '../../utils/categoryHelper.js';
 import './UploadPage.css';
 
 export default function UploadPage() {
@@ -40,6 +42,206 @@ export default function UploadPage() {
     useEffect(() => {
         tripAPI.list().then((res) => setTrips(res.data)).catch(() => { });
     }, []);
+
+    const { user } = useAuth();
+    const [tripFilter, setTripFilter] = useState('all'); // 'all' | 'mine' | 'employees'
+
+    const isManagerOrAdmin = user?.role === 'MANAGER' || user?.role === 'ADMIN';
+
+    // Phân loại chuyến công tác
+    const myTrips = trips.filter((t) => t.userId === user?.id);
+    const otherTrips = trips.filter((t) => t.userId !== user?.id);
+
+    // Nhóm chuyến của nhân viên theo tên
+    const tripsByEmployee = otherTrips.reduce((acc, t) => {
+        const empName = t.user?.name || 'Nhân viên';
+        if (!acc[empName]) acc[empName] = [];
+        acc[empName].push(t);
+        return acc;
+    }, {});
+
+    const selectedUploadTrip = trips.find((t) => t.id === tripId);
+    const selectedManualTrip = trips.find((t) => t.id === manualForm.tripId);
+
+    const formatTripDate = (d) => {
+        if (!d) return '';
+        return new Date(d).toLocaleDateString('vi-VN');
+    };
+
+    const renderTripOptions = (filter) => {
+        if (!isManagerOrAdmin) {
+            return (
+                <>
+                    <option value="">— Chọn chuyến công tác —</option>
+                    {trips.map((t) => (
+                        <option key={t.id} value={t.id}>
+                            {t.destination} ({formatTripDate(t.startDate)} - {formatTripDate(t.endDate)})
+                        </option>
+                    ))}
+                </>
+            );
+        }
+
+        if (filter === 'mine') {
+            return (
+                <>
+                    <option value="">— Chọn chuyến của bạn —</option>
+                    {myTrips.length === 0 ? (
+                        <option disabled value="">(Bạn chưa có chuyến công tác nào)</option>
+                    ) : (
+                        myTrips.map((t) => (
+                            <option key={t.id} value={t.id}>
+                                [Của tôi] {t.destination} ({formatTripDate(t.startDate)} - {formatTripDate(t.endDate)})
+                            </option>
+                        ))
+                    )}
+                </>
+            );
+        }
+
+        if (filter === 'employees') {
+            return (
+                <>
+                    <option value="">— Chọn chuyến của nhân viên —</option>
+                    {otherTrips.length === 0 ? (
+                        <option disabled value="">(Chưa có chuyến công tác nào của nhân viên)</option>
+                    ) : (
+                        Object.entries(tripsByEmployee).map(([empName, empTrips]) => (
+                            <optgroup key={empName} label={`Nhân viên: ${empName}`}>
+                                {empTrips.map((t) => (
+                                    <option key={t.id} value={t.id}>
+                                        [{empName}] {t.destination} ({formatTripDate(t.startDate)} - {formatTripDate(t.endDate)})
+                                    </option>
+                                ))}
+                            </optgroup>
+                        ))
+                    )}
+                </>
+            );
+        }
+
+        // 'all'
+        return (
+            <>
+                <option value="">— Chọn chuyến công tác —</option>
+                {myTrips.length > 0 && (
+                    <optgroup label="── Chuyến công tác của tôi ──">
+                        {myTrips.map((t) => (
+                            <option key={t.id} value={t.id}>
+                                [Của tôi] {t.destination} ({formatTripDate(t.startDate)} - {formatTripDate(t.endDate)})
+                            </option>
+                        ))}
+                    </optgroup>
+                )}
+                {Object.keys(tripsByEmployee).length > 0 && (
+                    Object.entries(tripsByEmployee).map(([empName, empTrips]) => (
+                        <optgroup key={empName} label={`── Nhân viên: ${empName} ──`}>
+                            {empTrips.map((t) => (
+                                <option key={t.id} value={t.id}>
+                                    [{empName}] {t.destination} ({formatTripDate(t.startDate)} - {formatTripDate(t.endDate)})
+                                </option>
+                            ))}
+                        </optgroup>
+                    ))
+                )}
+            </>
+        );
+    };
+
+    const renderSelectedTripBadge = (trip) => {
+        if (!trip) return null;
+        const isMine = trip.userId === user?.id;
+        return (
+            <div style={{
+                marginTop: 8,
+                padding: '10px 12px',
+                borderRadius: 8,
+                background: 'rgba(59, 130, 246, 0.05)',
+                border: '1px solid rgba(59, 130, 246, 0.2)',
+                fontSize: 12,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 5,
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
+                    <span style={{ fontWeight: 600, color: 'var(--color-text)', fontSize: 13 }}>
+                        {trip.destination}
+                    </span>
+                    {isManagerOrAdmin && (
+                        isMine ? (
+                            <span className="badge badge-info" style={{ gap: 4 }}>
+                                <User size={12} /> Chuyến của tôi
+                            </span>
+                        ) : (
+                            <span className="badge badge-warning" style={{ gap: 4 }}>
+                                <Users size={12} /> {trip.user?.name || 'Nhân viên'}
+                            </span>
+                        )
+                    )}
+                </div>
+                <div style={{ display: 'flex', gap: 14, color: 'var(--color-text-muted)', flexWrap: 'wrap' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <Calendar size={12} /> {formatTripDate(trip.startDate)} - {formatTripDate(trip.endDate)}
+                    </span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <CreditCard size={12} /> Hạn mức: {Number(trip.budget || 0).toLocaleString('vi-VN')}đ
+                    </span>
+                    {trip.purpose && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                            <Briefcase size={12} /> {trip.purpose}
+                        </span>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
+    const renderTripFilterPills = () => {
+        if (!isManagerOrAdmin) return null;
+        return (
+            <div style={{ display: 'flex', gap: 4, background: 'var(--color-bg)', padding: '2px 4px', borderRadius: 6, border: '1px solid var(--color-border)' }}>
+                <button
+                    type="button"
+                    onClick={() => setTripFilter('all')}
+                    style={{
+                        padding: '2px 8px', fontSize: 11, borderRadius: 4, border: 'none', cursor: 'pointer',
+                        background: tripFilter === 'all' ? 'var(--color-primary)' : 'transparent',
+                        color: tripFilter === 'all' ? 'white' : 'var(--color-text-secondary)',
+                        fontWeight: 500,
+                        transition: 'all 0.2s',
+                    }}
+                >
+                    Tất cả ({trips.length})
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setTripFilter('mine')}
+                    style={{
+                        padding: '2px 8px', fontSize: 11, borderRadius: 4, border: 'none', cursor: 'pointer',
+                        background: tripFilter === 'mine' ? 'var(--color-primary)' : 'transparent',
+                        color: tripFilter === 'mine' ? 'white' : 'var(--color-text-secondary)',
+                        fontWeight: 500,
+                        transition: 'all 0.2s',
+                    }}
+                >
+                    Của tôi ({myTrips.length})
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setTripFilter('employees')}
+                    style={{
+                        padding: '2px 8px', fontSize: 11, borderRadius: 4, border: 'none', cursor: 'pointer',
+                        background: tripFilter === 'employees' ? 'var(--color-primary)' : 'transparent',
+                        color: tripFilter === 'employees' ? 'white' : 'var(--color-text-secondary)',
+                        fontWeight: 500,
+                        transition: 'all 0.2s',
+                    }}
+                >
+                    Nhân viên ({otherTrips.length})
+                </button>
+            </div>
+        );
+    };
 
     const handleFile = async (f) => {
         if (!f) return;
@@ -205,11 +407,14 @@ export default function UploadPage() {
                             <h3 style={{ margin: 0, fontSize: 16 }}><PenLine size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} />Nhập thông tin hóa đơn</h3>
                             {error && <div style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>{error}</div>}
                             <div className="form-group">
-                                <label>Chuyến công tác *</label>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                                    <label style={{ margin: 0 }}>Chuyến công tác *</label>
+                                    {renderTripFilterPills()}
+                                </div>
                                 <select className="form-input" required value={manualForm.tripId} onChange={(e) => setManualForm({ ...manualForm, tripId: e.target.value })}>
-                                    <option value="">-- Chọn chuyến --</option>
-                                    {trips.map(t => <option key={t.id} value={t.id}>{t.destination} ({new Date(t.startDate).toLocaleDateString('vi-VN')})</option>)}
+                                    {renderTripOptions(tripFilter)}
                                 </select>
+                                {renderSelectedTripBadge(selectedManualTrip)}
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                                 <div className="form-group">
@@ -322,20 +527,19 @@ export default function UploadPage() {
                             </div>
 
                             <div className="form-group" style={{ marginTop: 16 }}>
-                                <label>Chuyến công tác <span style={{ color: 'var(--color-danger)' }}>*</span></label>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                                    <label style={{ margin: 0 }}>Chuyến công tác <span style={{ color: 'var(--color-danger)' }}>*</span></label>
+                                    {renderTripFilterPills()}
+                                </div>
                                 <select
                                     className="form-input"
                                     value={tripId}
                                     onChange={(e) => setTripId(e.target.value)}
                                     required
                                 >
-                                    <option value="">— Chọn chuyến công tác —</option>
-                                    {trips.map((t) => (
-                                        <option key={t.id} value={t.id}>
-                                            {t.destination} ({new Date(t.startDate).toLocaleDateString('vi-VN')})
-                                        </option>
-                                    ))}
+                                    {renderTripOptions(tripFilter)}
                                 </select>
+                                {renderSelectedTripBadge(selectedUploadTrip)}
                                 {!tripId && <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4 }}>Vui lòng chọn chuyến công tác trước khi upload</div>}
                             </div>
 
@@ -494,7 +698,7 @@ export default function UploadPage() {
                                             <FileText size={14} className="result-invoice__field-icon" />
                                             <span className="result-invoice__field-label">Loại</span>
                                         </div>
-                                        <span className="result-invoice__field-value">{ocrData.invoice_type || ocrData.type || '—'}</span>
+                                        <span className="result-invoice__field-value">{getCategoryLabel(ocrData.invoice_type || ocrData.type)}</span>
                                     </div>
                                 </div>
 

@@ -25,6 +25,12 @@ let adminWallet = null;
 let expenseManagerContract = null;
 let mockVNDContract = null;
 
+// Cache số dư & trạng thái để tăng tốc API
+let cachedPoolBalance = null;
+let lastPoolFetchTime = 0;
+const POOL_CACHE_TTL = 45 * 1000; // 45 giây cache
+const registeredEmployeeCache = new Map();
+
 /**
  * Khởi tạo kết nối blockchain.
  * Gọi 1 lần khi server start.
@@ -197,12 +203,23 @@ export async function validateExpenseOnChain(expenseId, approved) {
 }
 
 /**
- * Lấy số dư quỹ công ty.
+ * Lấy số dư quỹ công ty (có cache bộ nhớ đệm 45s để tránh nghẽn RPC Linea).
  */
-export async function getCompanyPoolBalance() {
+export async function getCompanyPoolBalance(forceRefresh = false) {
     if (!expenseManagerContract) return null;
-    const balance = await expenseManagerContract.getCompanyPoolBalance();
-    return Number(balance);
+    const now = Date.now();
+    if (!forceRefresh && cachedPoolBalance !== null && (now - lastPoolFetchTime < POOL_CACHE_TTL)) {
+        return cachedPoolBalance;
+    }
+    try {
+        const balance = await expenseManagerContract.getCompanyPoolBalance();
+        cachedPoolBalance = Number(balance);
+        lastPoolFetchTime = Date.now();
+        return cachedPoolBalance;
+    } catch (err) {
+        console.warn('⚠️ Lỗi đọc số dư quỹ công ty từ blockchain:', err.message);
+        return cachedPoolBalance;
+    }
 }
 
 /**
@@ -234,6 +251,7 @@ export async function registerEmployeeOnChain(walletAddress, role) {
         const tx = await expenseManagerContract.registerEmployee(walletAddress, tier);
         const receipt = await tx.wait();
         console.log(`✅ Employee registered on-chain: ${walletAddress} (tier=${tier})`);
+        registeredEmployeeCache.set(walletAddress.toLowerCase(), true);
         return {
             txHash: receipt.hash,
             gasUsed: receipt.gasUsed.toString(),
@@ -242,6 +260,7 @@ export async function registerEmployeeOnChain(walletAddress, role) {
         // Nếu đã đăng ký rồi thì bỏ qua
         if (err.message?.includes('already registered')) {
             console.log(`ℹ️ Employee already registered on-chain: ${walletAddress}`);
+            registeredEmployeeCache.set(walletAddress.toLowerCase(), true);
             return { txHash: null, gasUsed: '0', alreadyRegistered: true };
         }
         throw new Error(translateBlockchainError(err));
@@ -249,15 +268,23 @@ export async function registerEmployeeOnChain(walletAddress, role) {
 }
 
 /**
- * Kiểm tra nhân viên đã đăng ký trên Smart Contract chưa.
+ * Kiểm tra nhân viên đã đăng ký trên Smart Contract chưa (có in-memory cache).
  * @param {string} walletAddress - Địa chỉ ví Ethereum
  * @returns {Promise<boolean>}
  */
 export async function checkEmployeeRegisteredOnChain(walletAddress) {
     if (!expenseManagerContract || !walletAddress) return false;
+    const addr = walletAddress.toLowerCase();
+    if (registeredEmployeeCache.has(addr)) {
+        return registeredEmployeeCache.get(addr);
+    }
     try {
         const employeeData = await expenseManagerContract.employees(walletAddress);
-        return employeeData.registered;
+        const isReg = !!employeeData.registered;
+        if (isReg) {
+            registeredEmployeeCache.set(addr, true);
+        }
+        return isReg;
     } catch (err) {
         console.warn(`⚠️ Lỗi kiểm tra registered on-chain cho ${walletAddress}:`, err.message);
         return false;

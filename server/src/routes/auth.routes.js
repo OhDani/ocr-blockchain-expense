@@ -10,6 +10,7 @@ import { PrismaClient } from '@prisma/client';
 import { authenticate } from '../middleware/auth.js';
 import { registerEmployeeOnChain, isBlockchainReady } from '../services/blockchain/blockchainService.js';
 import { getAllowedDomains } from '../services/domainService.js';
+import { getCompanyInfo, updateCompanyInfo } from '../services/companyService.js';
 import { ethers } from 'ethers';
 
 const router = Router();
@@ -21,7 +22,8 @@ const prisma = new PrismaClient();
 router.get('/check-setup', async (req, res, next) => {
     try {
         const userCount = await prisma.user.count();
-        res.json({ success: true, data: { needSetup: userCount === 0 } });
+        const company = getCompanyInfo();
+        res.json({ success: true, data: { needSetup: userCount === 0, companyName: company.companyName } });
     } catch (error) {
         next(error);
     }
@@ -56,8 +58,12 @@ router.post('/setup', async (req, res, next) => {
             select: { id: true, email: true, name: true, role: true },
         });
 
-        // Lưu tên công ty vào SystemConfig (nếu có table) hoặc env
-        // Tạm thời lưu vào metadata
+        // Lưu tên công ty vào cấu hình hệ thống
+        if (companyName) {
+            try {
+                updateCompanyInfo({ companyName });
+            } catch {}
+        }
 
         // Tạo JWT cho admin mới
         const token = jwt.sign(
@@ -101,8 +107,8 @@ router.post('/register', authenticate, async (req, res, next) => {
             return res.status(409).json({ success: false, error: 'Email đã tồn tại' });
         }
 
-        // Tự động sinh ví nếu không có
-        const finalWalletAddress = walletAddress || ethers.Wallet.createRandom().address;
+        // Nếu có chỉ định ví thì dùng, không thì để null để nhân viên tự liên kết MetaMask chính chủ
+        const finalWalletAddress = walletAddress?.trim() || null;
 
         // Hash password + tạo user
         const hashedPassword = await bcrypt.hash(password, 10);
@@ -114,14 +120,16 @@ router.post('/register', authenticate, async (req, res, next) => {
                 role: role || 'EMPLOYEE',
                 departmentId,
                 walletAddress: finalWalletAddress,
-                wallet: {
-                    create: { address: finalWalletAddress, balance: 0 }
-                }
+                ...(finalWalletAddress ? {
+                    wallet: {
+                        create: { address: finalWalletAddress, balance: 0 }
+                    }
+                } : {})
             },
             select: { id: true, email: true, name: true, role: true, department: { select: { name: true, id: true } }, walletAddress: true, wallet: true, avatarUrl: true },
         });
 
-        // Đăng ký nhân viên trên blockchain (nếu có ví)
+        // Đăng ký nhân viên trên blockchain (nếu có ví và không phải ADMIN)
         let blockchainReg = null;
         if (finalWalletAddress && isBlockchainReady() && role !== 'ADMIN') {
             try {
@@ -271,8 +279,7 @@ router.post('/google', async (req, res, next) => {
                 orderBy: { createdAt: 'asc' },
             });
 
-            // Tự động sinh ví nội bộ ban đầu
-            const walletAddress = ethers.Wallet.createRandom().address;
+            // Nhân viên mới đăng nhập Google lần đầu: walletAddress để null chờ nhân viên tự liên kết MetaMask chính chủ
             const dummyPassword = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
 
             user = await prisma.user.create({
@@ -282,23 +289,11 @@ router.post('/google', async (req, res, next) => {
                     password: dummyPassword,
                     role: 'EMPLOYEE',
                     departmentId: defaultDept ? defaultDept.id : null,
-                    walletAddress,
+                    walletAddress: null,
                     avatarUrl: picture,
-                    wallet: {
-                        create: { address: walletAddress, balance: 0 },
-                    },
                 },
                 include: { department: { select: { id: true, name: true } } },
             });
-
-            // Đăng ký nhân viên trên Smart Contract nếu blockchain sẵn sàng
-            if (isBlockchainReady()) {
-                try {
-                    await registerEmployeeOnChain(walletAddress, 'EMPLOYEE');
-                } catch (bcErr) {
-                    console.warn('⚠️ Blockchain register for Google user failed:', bcErr.message);
-                }
-            }
         }
 
         if (user.isLocked) {

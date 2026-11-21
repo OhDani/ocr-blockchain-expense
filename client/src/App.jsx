@@ -81,6 +81,7 @@ export default function App() {
           <Route path="upload" element={<UploadPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="reports" element={<ReportsPage />} />
+          <Route path="admin/reports" element={<ReportsPage />} />
           <Route path="notifications" element={<NotificationsPage />} />
           <Route path="activity" element={<ActivityPage />} />
 

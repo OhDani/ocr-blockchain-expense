@@ -23,13 +23,14 @@ const TAX_ID_PATTERN = /^\d{10}(\d{3})?$/;
  * @param {string} params.tripId - ID trip (để tính tổng chi cho chuyến)
  * @returns {{ status: string, checks: object, details: object, message: string }}
  */
-export async function evaluatePolicy({ ocrData, employeeRole = 'EMPLOYEE', approvedBudget, userId, tripId }) {
+export async function evaluatePolicy({ ocrData, employeeRole = 'EMPLOYEE', approvedBudget, userId, tripId, duplicateInfo }) {
     const checks = {
         budget_ok: true,
         policy_ok: true,
         daily_ok: true,
         per_trip_ok: true,
         tax_id_ok: true,
+        duplicate_ok: !duplicateInfo,
     };
 
     const dbLimit = await prisma.policyLimit.findUnique({
@@ -130,7 +131,10 @@ export async function evaluatePolicy({ ocrData, employeeRole = 'EMPLOYEE', appro
     let status;
     let message;
 
-    if (!checks.tax_id_ok) {
+    if (!checks.duplicate_ok && duplicateInfo) {
+        status = 'OVER_BUDGET'; // hoặc INVALID_DATA
+        message = `⚠️ Trùng lặp hóa đơn: Trùng với Hóa đơn #${duplicateInfo.targetShortId || ''} (${duplicateInfo.employeeName || 'nhân viên'} - ${formatVND(duplicateInfo.amount || 0)})`;
+    } else if (!checks.tax_id_ok) {
         status = 'INVALID_TAX_ID';
         message = `❌ Mã số thuế "${taxId}" không hợp lệ (cần 10 hoặc 13 chữ số)`;
     } else if (!checks.policy_ok) {
@@ -166,6 +170,7 @@ export async function evaluatePolicy({ ocrData, employeeRole = 'EMPLOYEE', appro
             per_trip_limit: limits.perTrip,
             trip_total: tripTotal || null,
             difference: approvedBudget != null ? approvedBudget - grandTotal : null,
+            duplicate_info: duplicateInfo || null,
         },
         message,
     };
